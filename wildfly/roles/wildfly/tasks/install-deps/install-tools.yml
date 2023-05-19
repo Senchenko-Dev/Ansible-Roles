@@ -1,0 +1,15 @@
+---
+#  wildfly/roles/wildfly/tasks/install-deps.yml
+
+- name: install neccessary tools
+  package:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  with_items:
+    - java
+    - unzip
+    - python
+    - mc
+    - wget
+  become: yes

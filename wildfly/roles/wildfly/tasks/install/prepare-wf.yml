@@ -1,0 +1,352 @@
+---
+# wf_os_user -> wf_os_user
+# wf_os_group -> wf_os_group
+- name: Reading whoami
+  shell: whoami
+  register: wai
+
+# todo не видит nexusUser и nexusPass через lookup
+#- name: set facts on local
+#  set_fact:
+#    nexus_username: "{{ lookup('env', 'nexusUser') }}"
+#    nexus_password: "{{ lookup('env', 'nexusPass') }}"
+#- debug: msg="{{ nexus_username }}"
+
+- name: Getting Oracle driver to slave workspace
+  get_url:
+    url: "{{ Oracle_jdbc_URL }}"
+    dest: "{{ WORKSPACE }}/ojdbc-7.zip"
+    username: "{{ nexusUser }}"
+    password: "{{ nexusPass }}"
+#    username: "{{ nexus_username }}"
+#    password: "{{ nexus_password }}"
+    validate_certs: no
+  ignore_errors: yes
+  delegate_to: 127.0.0.1
+  run_once: yes #!!!
+
+- name: Getting PostgreSQL driver to slave workspace
+  get_url:
+    url: "{{ PostgreSQL_jdbc_URL }}"
+    dest: "{{ WORKSPACE }}/postgres_jdbc.zip"
+    username: "{{ nexusUser }}"
+    password: "{{ nexusPass }}"
+    validate_certs: no
+  ignore_errors: yes
+  delegate_to: 127.0.0.1
+  run_once: yes #!!!
+
+- name: create temp dir
+  tempfile:
+    state: directory
+  register: tmpdir
+
+- name: copy ojdbc-7.zip to tmpdir.path
+  copy:
+    src: "{{ WORKSPACE }}/ojdbc-7.zip"
+    dest: "{{ tmpdir.path }}"
+    mode: '0777'
+  ignore_errors: yes
+
+- name: Unzip Oracle driver
+  unarchive:
+    src: "{{ tmpdir.path }}/ojdbc-7.zip"
+    dest: "{{ tmpdir.path }}"
+    remote_src: yes
+  ignore_errors: yes
+
+- name: Create tmpdir.path/PG directory
+  file:
+    path: "{{ tmpdir.path }}/PG"
+    state: directory
+
+- name: copy postgres_jdbc.zip to tmpdir.path/PG
+  copy:
+    src: "{{ WORKSPACE }}/postgres_jdbc.zip"
+    dest: "{{ tmpdir.path }}/PG"
+    mode: '0777'
+  ignore_errors: yes
+
+- name: Unzip postgres_jdbc.zip
+  unarchive:
+    src: "{{ tmpdir.path }}/PG/postgres_jdbc.zip"
+    dest: "{{ tmpdir.path }}/PG"
+    remote_src: yes
+  ignore_errors: yes
+
+- name: 'Adding template to sudoers'
+  lineinfile:
+    path: /etc/sudoers
+    line: '{{ item }}'
+    state: present
+    backup: yes
+    validate: /usr/sbin/visudo -cf %s
+  with_items:
+    - "Defaults: {{ wf_os_user }}       !requiretty"
+    - "{{ wf_os_user }} ALL=(ALL)    NOPASSWD: /bin/systemctl * wildfly, /bin/systemctl * wildfly.service, /bin/systemctl * wildfly-core,  /bin/systemctl * wildfly-core.service"
+  become: yes
+  when: wai.stdout != wf_os_user
+
+- name: 'Adding template to sudoers'
+  lineinfile:
+    path: /etc/sudoers
+    line: '{{ item }}'
+    state: absent
+    backup: yes
+    validate: /usr/sbin/visudo -cf %s
+  with_items:
+    - "{{ wf_os_user }} ALL=(ALL)    NOPASSWD: /bin/systemctl start wildfly"
+    - "{{ wf_os_user }} ALL=(ALL)    NOPASSWD: /bin/systemctl restart wildfly"
+    - "{{ wf_os_user }} ALL=(ALL)    NOPASSWD: /bin/systemctl stop wildfly"
+    - "{{ wf_os_user }} ALL=(ALL)    NOPASSWD: /bin/systemctl status wildfly"
+  become: yes
+  when: wai.stdout != wf_os_user
+
+- name: run script
+  shell: "{{ wf_install_dir }}/bin/add-user.sh -u {{ wf_user }} -p {{ wfadminpass }}"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ##########no_log: yes
+
+- name: create directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0755
+    recurse: yes
+  become: yes
+  with_items:
+    - "{{ wf_install_dir }}/native_lib"
+    - "/logs/WF"
+    - "/logs/WF/custodian-selfcheck"
+    - "/logs/WF/pprblogs"
+    - "{{ wf_install_dir }}/tmp"
+    - "{{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+    - "{{ wf_install_dir }}/standalone/lib/ext/org/postgresql/main"
+  when: wai.stdout != wf_os_user
+
+#############################################
+
+### ?????????????
+- name: create symlink
+  file:
+    src: "/logs/WF/pprblogs" # todo HARDCODE!
+    dest: "/opt/pprb"  # todo HARDCODE!
+    state: link
+    force: yes
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0755
+  become: yes
+  when: wai.stdout != wf_os_user and Stand != 'AVANGARD' and Stand != 'TORPEDO'
+
+- name: copy pprb_wf_configs/oracle/main
+  shell: "cp {{ item }} {{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+  with_items:
+    - "{{ tmpdir.path }}/*.xml"
+    - "{{ tmpdir.path }}/*.jar"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+- name: copy org/postgresql/main
+  shell: "cp {{ item }} {{ wf_install_dir }}/standalone/lib/ext/org/postgresql/main"
+  with_items:
+    - "{{ tmpdir.path }}/PG/*.xml"
+    - "{{ tmpdir.path }}/PG/*.jar"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+- name: 'chown oracle/main & postgresql/main'
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0700
+    recurse: yes
+  with_items:
+    - "{{ wf_install_dir }}/modules/com"
+    - "{{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+    - "{{ wf_install_dir }}/standalone/lib/ext/org/postgresql/main"
+  become: yes
+  when: wai.stdout != wf_os_user
+
+- name: "Start WildFly service"
+  systemd:
+    name: wildfly
+    state: started
+  become: yes
+  ignore_errors: true
+  when: wai.stdout != wf_os_user
+
+#- name: Debug
+#  debug:
+#    msg: "wf_service = {{ wf_service }}"
+#
+#- name: "Start WildFly service"
+#  include_tasks: control-start-console-wf.yml
+#  ########become: yes
+#  ignore_errors: true
+#  when: wai.stdout != wf_os_user
+
+- name: setup oracle in wildfly
+  shell: |
+    {{ item }}
+  with_items:
+    - "./jboss-cli.sh --connect --commands=\"module add --name=com.oracle --resources={{ wf_install_dir }}/standalone/lib/ext/com/oracle/main/ojdbc7.jar --module-xml={{ wf_install_dir }}/standalone/lib/ext/com/oracle/main/module.xml\""
+  args:
+    chdir: "{{ wf_install_dir }}/bin"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+- name: setup PostgreSQL in wildfly
+  shell: |
+    {{ item }}
+  with_items:
+    - "./jboss-cli.sh --connect --commands=\"module add --name=org.postgresql --resources={{ wf_install_dir }}/standalone/lib/ext/org/postgresql/main/postgresql-42.2.16.jar --dependencies=javax.api,javax.transaction.api\""
+  args:
+    chdir: "{{ wf_install_dir }}/bin"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+- name: 'chown oracle/main org/postgresql/main files'
+  file:
+    path: "{{ item }}"
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0644
+  with_items:
+    - "{{ wf_install_dir }}/modules/com/oracle/main/module.xml"
+    - "{{ wf_install_dir }}/modules/com/oracle/main/ojdbc7.jar"
+    - "{{ wf_install_dir }}/modules/org/postgresql/main/postgresql-42.2.16.jar"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+- name: copy pprb_wf_configs/oracle/main
+  shell: "cp {{ wf_install_dir }}/modules/com/oracle/main/* {{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+- name: copy org/postgresql/main/
+  shell: "cp {{ wf_install_dir }}/modules/org/postgresql/main/* {{ wf_install_dir }}/standalone/lib/ext/org/postgresql/main"
+  become: yes
+  when: wai.stdout != wf_os_user
+  ignore_errors: yes
+
+####################################################
+- name: create directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0755
+    recurse: yes
+  #become: yes
+  with_items:
+    - "{{ wf_install_dir }}/native_lib"
+    - "/logs/WF"
+    - "/logs/WF/custodian-selfcheck"
+    - "/logs/WF/pprblogs"
+    - "{{ wf_install_dir }}/tmp"
+    - "{{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+  when: wai.stdout == wf_os_user
+
+#############################################
+
+#- name: create symlink
+#  file:
+#    src: "/logs/WF/pprblogs"
+#    dest: "/opt/pprb"
+#    state: link
+#    force: yes
+#    owner: '{{ wildfly_user }}'
+#    group: '{{ wildfly_group }}'
+#    mode: 0755
+#  #become: yes
+#  when: wai.stdout != 'pprb_dev'
+
+- name: copy pprb_wf_configs/oracle/main
+  shell: "cp {{item}} {{wf_install_dir}}/standalone/lib/ext/com/oracle/main"
+  #become: yes
+  with_items:
+    - "{{ tmpdir.path }}/*.xml"
+    - "{{ tmpdir.path }}/*.jar"
+  when: wai.stdout == wf_os_user
+
+- name: 'chown oracle/main & undertow/main'
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0700
+#    recurse: yes
+  with_items:
+    - "{{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+#  become: yes
+  when: wai.stdout == wf_os_user
+
+- name: run script
+  shell: "{{ wf_install_dir }}/bin/add-user.sh -u fly -p fly"
+  #become: yes
+  when: wai.stdout == wf_os_user
+
+- name: "Start WildFly service"
+  systemd:
+    name: wildfly
+    state: started
+#  become: yes
+  ignore_errors: true
+  when: wai.stdout == wf_os_user
+
+- name: setup oracle in wildfly
+  shell: |
+    {{ item }}
+  with_items:
+    - "./jboss-cli.sh --connect --commands=\"module add --name=com.oracle --resources={{wf_install_dir}}/standalone/lib/ext/com/oracle/main/ojdbc7.jar --module-xml={{wf_install_dir}}/standalone/lib/ext/com/oracle/main/module.xml\""
+# Hide sensitive info
+#  no_log: "{{ enable_no_log | default(true) }}"
+  args:
+    chdir: "{{ wf_install_dir }}/bin"
+  #become: yes
+  when: wai.stdout == wf_os_user
+
+- name: 'chown oracle/main dir'
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0700
+    recurse: yes
+  with_items:
+    - "{{ wf_install_dir }}/modules/com"
+    - "{{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+  #become: yes
+  when: wai.stdout == wf_os_user
+
+- name: 'chown oracle/main files'
+  file:
+    path: "{{ item }}"
+    owner: '{{ wf_os_user }}'
+    group: '{{ wf_os_group }}'
+    mode: 0644
+  with_items:
+    - "{{ wf_install_dir }}/modules/com/oracle/main/module.xml"
+    - "{{ wf_install_dir }}/modules/com/oracle/main/ojdbc7.jar"
+  #become: yes
+  when: wai.stdout == wf_os_user
+
+- name: copy pprb_wf_configs/oracle/main
+  shell: "cp {{ wf_install_dir }}/modules/com/oracle/main/* {{ wf_install_dir }}/standalone/lib/ext/com/oracle/main"
+  #become: yes
+  when: wai.stdout == wf_os_user

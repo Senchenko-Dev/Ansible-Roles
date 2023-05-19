@@ -1,0 +1,70 @@
+---
+# Setup variables
+- include: variables.yml
+
+- import_tasks: system_setup.yml
+
+- name: Template kube RPM repo
+  template:
+    src: kubernetes.repo.j2
+    dest: /etc/yum.repos.d/kubernetes.repo
+
+- name: Default kube version fact
+  set_fact:
+    kube_version_parameter: ""
+
+- name: Set kube version fact to specific version when specified
+  set_fact:
+    kube_version_parameter: "-{{ kube_version }}"
+  when: kube_version != "latest"
+
+- name: copy/install Kubernetes packages
+  block:
+    - name: copy rpm file
+      copy:
+        src: "{{ item }}"
+        dest: /root
+        owner: root
+        group: root
+        mode: "u=rw,g=r,o=r"
+      with_items:
+        - "{{ k8s_use_rpms }}/kubectl.rpm"
+        - "{{ k8s_use_rpms }}/kubelet.rpm"
+        - "{{ k8s_use_rpms }}/kubeadm.rpm"
+        - "{{ k8s_use_rpms }}/kubernetes-cni.rpm"
+    - name: Install required packages for Kubernetes deployment
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - "/root/kubectl.rpm"
+        - "/root/kubelet.rpm"
+        - "/root/kubeadm.rpm"
+        - "/root/kubernetes-cni.rpm"
+  when: k8s_use_rpms is defined
+
+- name: Install required packages for Kubernetes deployment
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - kubectl{{ kube_version_parameter }}
+    - kubelet{{ kube_version_parameter }}
+    - kubeadm{{ kube_version_parameter }}
+    - kubernetes-cni
+  when: k8s_use_rpms is not defined
+
+- name: Optionally include playbook for binary install
+  include: binary_install.yml
+  when: binary_install
+
+- name: Create /etc/cni/net.d
+  file:
+    path: /etc/cni/net.d
+    state: directory
+
+- name: make sure kubelet is started and enabled
+  service:
+    name: "kubelet"
+    state: started
+    enabled: yes

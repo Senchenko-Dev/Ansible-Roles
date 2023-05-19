@@ -1,0 +1,214 @@
+---
+# todo NOT TESTED
+
+- name: Определение имени файла .rpm
+  find:
+    patterns: "postgresql-sber-edition-*"
+    paths: "{{ local_distr_path }}/"
+  register: pgse_rpm
+  delegate_to: localhost
+  run_once: yes
+  become: no
+#Sample:
+#[{'path': '/var/tmp/test1', 'mode': '0644', '...': '...', 'checksum': '16fac7be61a6e4591a33ef4b729c5c3302307523'}, {'path': '/var/tmp/test2', '...': '...'}]
+
+- assert:
+    that: pgse_rpm.matched == 1
+    fail_msg: Найдено более одного файла rpm в дистрибутиве.
+    success_msg: Найден файл {{ pgse_rpm.files[0].path | basename }}
+  delegate_to: localhost
+  run_once: yes
+  become: no
+
+- name: pgse_rpm_filename
+  set_fact:
+    pgse_rpm_local_file: "{{ pgse_rpm.files[0].path }}" # | basename
+  when: pgse_rpm.matched == 1
+  delegate_to: localhost
+  run_once: yes
+  become: no
+
+- copy:
+    src: "{{ pgse_rpm_local_file }}"
+    dest: "{{ distr_path }}/"
+  register: pgse_rpm_local_filename
+
+- name: pgse_rpm_file
+  set_fact:
+    pgse_rpm_file: "{{ pgse_rpm_local_filename.path }}"
+#    pgse_rpm_file: "{{ distr_path }}/{{ pgse_rpm_local_file | basename }}"
+
+- debug: msg="STANDALONE:"
+- block: # when: installation_type == 'standalone'
+    - name: Проверить наличие всех зависимостей (надо?)
+      shell:  yum -q deplist {{ pgse_rpm_file }}
+
+    - name: Останов экземпляра БД
+      shell: pg_ctl stop
+      when: not patroni_present
+
+    - name: Останов экземпляра БД с patroni
+      service:
+        name: patroni
+        state: stopped
+      become_user: root
+      become: yes
+      when: patroni_present
+
+      #Сделать копию старых исполняемых файлов на случай проблем с обновлением
+      #cp -r /usr/local/pgsql ~/pgsql.<old_version>
+    - name: резервное копирование исполняемых файлов
+      copy:
+        remote_src: true
+        src: /usr/local/pgsql/
+        dest: "~/pgsql.{{ pgse_version_from }}"
+
+    #установить новую версию
+    #rpm2cpio postgresql-sber-edition-04.002.04-redhat7_7.x86_64.rpm | cpio -idmv
+    #cp -r ./usr/local/pgsql/* /usr/local/pgsql
+    - name: Установка новой версии исполняемых файлов
+      shell:
+        cmd: |
+          rpm2cpio {{ pgse_rpm_file }} > pg.cpio
+          cpio -idmv < pg.cpio
+        chdir: "{{ distr_path }}"
+
+    - name: Копирование исполняемых файлов
+      copy:
+        remote_src: true
+        src: "{{ distr_path }}/usr/local/pgsql/"
+        dest: /usr/local/pgsql
+
+    #поднять экземпляр БД
+    #pg_ctl start (если установлен stadalone без patroni)
+    #ИЛИ sudo systemctl start patroni (если установлен stadalone с patroni)
+    - block:
+      - name: Запуск экземпляра БД
+        shell: pg_ctl start
+        when: not patroni_present
+
+      - name: Запуск экземпляра БД с patroni
+        service:
+          name: patroni
+          state: started
+        become_user: root
+        become: yes
+        when: patroni_present
+
+      #В случае ошибок - остановить текущий экземпляр (если он запущен) и восстановить старые исполняемые файлы:
+      #pg_ctl stop
+      #ИЛИ sudo systemctl stop patroni (если установлен stadalone с patroni)
+      rescue:
+      - name: Останов экземпляра БД
+        shell: pg_ctl stop
+        when: not patroni_present
+
+      - name: Останов экземпляра БД с patroni
+        service:
+          name: patroni
+          state: stopped
+        become_user: root
+        become: yes
+        when: patroni_present
+
+    #rm -r /usr/local/pgsql/*
+    #cp -r ~/pgsql.<old_version>/* /usr/local/pgsql
+      - name: Восстановление исполняемых файлов
+        copy:
+          remote_src: true
+          src: ~/pgsql.{{ pgse_version_from }}/
+          dest: /usr/local/pgsql
+      - name: Запуск экземпляра БД
+        shell: pg_ctl start
+        when: not patroni_present
+
+      - name: Запуск экземпляра БД с patroni
+        service:
+          name: patroni
+          state: started
+        become_user: root
+        become: yes
+        when: patroni_present
+
+      - fail:
+          msg: "Ошибка запуска обновленной версии исполняемых файлов. Обновление прервано."
+    - debug: msg="END STANDALONE"
+  when: installation_type == 'standalone'
+
+
+- debug: msg="CLUSTER:"
+  run_once: yes
+
+- block: # when: installation_type == 'cluster'
+    - name: Проверить наличие всех зависимостей (надо?)
+      shell:  yum -q deplist {{ pgse_rpm_file }}
+
+    - name: Отключить autofailover в патрони
+      shell: |
+        source ~/.bash_profile
+        patronictl -c /etc/patroni/postgres.yml pause
+
+      #определить текущую _реплику_, начать обновления с нее
+    - block: # when: is_replica
+        - debug: msg="Обновление на реплике"
+
+        - name: Останов patroni
+          service:
+            name: patroni
+            state: stopped
+          become_user: root
+          become: yes
+
+          # todo убедиться, что _другой_ узел работает и является мастером
+          #list
+        - name: Проверка лидера
+          shell: |
+            source ~/.bash_profile
+            list
+          ignore_errors: true
+
+        - name: Копирование файлов из rpm
+          include_tasks: update_files_from_rpm.yml
+
+      when: is_replica
+
+    - block:
+        - debug: msg="Обновление на лидере"
+
+        - name: Переключениероли лидера (switchover)
+          shell: |
+            source ~/.bash_profile
+            patronictl -c /etc/patroni/postgres.yml switchover --force
+          register: shell_result
+          failed_when: "'Switchover failed' in shell_result.stdout"
+
+        - name: Останов patroni
+          service:
+            name: patroni
+            state: stopped
+          become_user: root
+          become: yes
+
+        - name: Проверка лидера
+          shell: |
+            source ~/.bash_profile && list
+
+        - name: Копирование файлов из rpm
+          include_tasks: update_files_from_rpm.yml
+
+      when: is_leader
+
+    - name: Включить autofailover в патрони
+      shell: |
+        source ~/.bash_profile
+        patronictl -c /etc/patroni/postgres.yml resume
+
+    - debug: msg="END CLUSTER"
+      run_once: yes
+  when: installation_type == 'cluster'
+
+
+- name: Проверка версии PGSE
+  shell: |
+    source ~/.bash_profile
+    $PGHOME/bin/psql -c 'select version();' | egrep -o '(PostgreSQL Sber Edition [0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4})' | egrep -o '[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}'

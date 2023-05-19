@@ -1,0 +1,50 @@
+- name: резервное копирование исполняемых файлов
+  copy:
+    remote_src: true
+    src: /usr/local/pgsql/
+    dest: "~/pgsql.{{ pgse_version_from }}"
+
+#установить новую версию
+- name: Установка новой версии исполняемых файлов
+  shell:
+    cmd: |
+      rpm2cpio {{ pgse_rpm_file }} > pg.cpio
+      cpio -idmv < pg.cpio
+    chdir: "{{ distr_path }}"
+
+
+- block:
+    - name: Копирование исполняемых файлов
+      copy:
+        remote_src: true
+        src: "{{ distr_path }}/usr/local/pgsql/"
+        dest: /usr/local/pgsql
+
+    #поднять экземпляр БД
+    - name: Запуск patroni
+      service:
+        name: patroni
+        state: started
+      become_user: root
+      become: yes
+
+    #Запустить postgres в patroni
+    #patronictl -c /etc/patroni/postgres.yml restart <clustername> <current member>
+    - name: Запустить postgres в patroni
+      shell: |
+        source ~/.bash_profile
+        restart {{ cluster_replica_name }} --force
+
+    # todo Для отладки бекапа тут фейл!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    - fail: msg="======================= DEDUG ENDPOINT ================================================================="
+      when: is_leader
+
+  #В случае ошибок - остановить текущий экземпляр (если он запущен) и восстановить старые исполняемые файлы:
+  #sudo systemctl stop patroni
+  #rm -r /usr/local/pgsql/*
+  #cp -r ~/pgsql.<old_version>/* /usr/local/pgsql
+  rescue:
+    - include_tasks: update_files_from_rpm_undo.yml
+
+    - fail:
+        msg: "Ошибка запуска обновленной версии исполняемых файлов. Обновление прервано."

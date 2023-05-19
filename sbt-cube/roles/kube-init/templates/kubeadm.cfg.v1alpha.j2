@@ -1,0 +1,24 @@
+# Full parameters @ https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+apiVersion: kubeadm.k8s.io/v1alpha1
+kind: MasterConfiguration
+{% if control_plane_listen_all %}
+controllerManagerExtraArgs:
+  address: 0.0.0.0
+schedulerExtraArgs:
+  address: 0.0.0.0
+{% endif %}
+{% if enable_device_plugins %}
+apiServerExtraArgs:
+  feature-gates: DevicePlugins=true
+{% endif %}
+networking:
+  podSubnet: {{ pod_network_cidr }}/16
+kubeletConfiguration:
+  baseConfig:
+    cgroupDriver: systemd
+    # kubeletCgroups: /systemd/system.slice
+    # unsure if this fits for: runtime-cgroups
+    # systemCgroups: /systemd/system.slice
+{% if container_runtime == "crio" %}
+criSocket: /var/run/crio/crio.sock
+{% endif %}

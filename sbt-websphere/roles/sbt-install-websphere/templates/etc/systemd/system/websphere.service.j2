@@ -1,0 +1,12 @@
+[Unit]
+Description=IBM WebSphere Application Server
+ 
+[Service]
+Type=oneshot
+ExecStart={{ WAS_DIR }}/AppServer/bin/startServer.sh server1
+ExecStop={{ WAS_DIR }}/AppServer/bin/stopServer.sh server1
+User={{ WAS_SSH_ADMIN_LOGIN }}
+RemainAfterExit=yes
+ 
+[Install]
+WantedBy=default.target

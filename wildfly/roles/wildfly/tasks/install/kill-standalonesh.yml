@@ -1,0 +1,23 @@
+- name: Reading whoami
+  shell: whoami
+  register: wai
+
+- name: "Try to stop WF service"
+  command: /bin/systemctl stop "{{ service_name }}"
+  become: yes
+  ignore_errors: True
+  when: "wai.stdout != wf_os_user"
+
+- name: "Kill standalone.sh and orphan java process"
+  shell: for KPID in `ps -ef |grep {{ wf_install_dir }} |grep -v grep |awk '{print $2;}'`;do kill -9 $KPID; done
+  become: yes
+  when: "wai.stdout != wf_os_user"
+
+- name: "Try to stop WF service"
+  command: /bin/systemctl stop "{{ service_name }}"
+  ignore_errors: True
+  when: "wai.stdout == wf_os_user"
+
+- name: "Kill standalone.sh and orphan java process"
+  shell: for KPID in `ps -ef |grep {{ wf_install_dir }} |grep -v grep |awk '{print $2;}'`;do kill -9 $KPID; done
+  when: "wai.stdout == wf_os_user"

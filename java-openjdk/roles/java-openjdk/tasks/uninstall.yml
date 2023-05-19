@@ -1,0 +1,20 @@
+---
+- name: Set vars by {{ ansible_distribution }}
+  include_tasks: "uninstall-{{ ansible_distribution }}.yml"
+
+- name: Add package for remove
+  set_fact:
+    package_remove: "{{ package_remove + [ java_package_name ] }}"
+  when: java_package_name is defined
+
+- name: Uninstall packages
+  package:
+    name: "{{ item }}"
+    state: absent
+  with_items: "{{ package_remove }}"
+  become: yes
+  ignore_errors: true
+
+- name: Which?
+  shell: which java
+  ignore_errors: true

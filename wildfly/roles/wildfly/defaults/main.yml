@@ -1,0 +1,65 @@
+#################################################################################
+# TERRAFORM
+executed_by_terraform: "False"
+overwrite_files_wildfly: []
+#################################################################################
+# INSTALL
+WORKSPACE: "." # Ранее использовалось в Jenkins
+Stand: "" # Ранее использовалось в I_EIP
+wf_install_dir: "/usr/WF/WF_PPRB"
+
+wf_os_user: 'wildfly' # "{{ ansible_user | default('wildfly') }}" # todo?
+wf_os_user_pwd: 'wildfly' #  "{{ ansible_password | default('wildfly') }}" # todo?
+wf_os_group: "wfgroup"
+
+force_update: false
+force_reinstall: false
+
+
+double_service: true # to do ...
+timeout_start_console_wf: 300
+
+#################################################################################
+# UPDATE JAVA OPTS
+zone_prefix: 'zone0'
+group_prefix: ''
+aj_prefix: ''
+z_prefix: [""]
+
+#################################################################################
+# PREPARE
+wildfly_url: ""
+wildfly_version: ""
+Oracle_jdbc_URL: "https://base.sw.sbc.space/nexus/service/local/repositories/Nexus_PROD/content/Nexus_PROD/CI00360902_TECH_CORE/D-09.004.02-01/CI00360902_TECH_CORE-D-09.004.02-01-distrib.zip"
+PostgreSQL_jdbc_URL: "https://base.sw.sbc.space/nexus/service/local/repositories/Nexus_PROD/content/Nexus_PROD/CI00360902_TECH_CORE/D-09.004.08-01/CI00360902_TECH_CORE-D-09.004.08-01-distrib.zip"
+
+#################################################################################
+# WF AS SERVICE
+wf_service_version: "3.17"
+### wf_user: wfadmin # wf_os_user
+### wf_group: wfgroup # wf_os_group
+### wf_home: "/opt/pprb/wildfly-10.1.0.Final" # ???
+wf_home: "{{ wf_install_dir }}"
+wf_log_dir: "${WILDFLY_HOME}/standalone/log"
+wf_log_name: "wf_service_control.log"
+wf_batch_timeout: 1200
+wf_check_timeout: 300
+wf_break_on_fail: false
+service_dir: "{{ wf_home }}/service"
+service_systemd_dir: "{{ service_dir }}/systemd"
+systemd_dir: "/etc/systemd/system"
+service_name: wildfly
+wf_service: "{{ service_name }}-core.service"
+wfapp_service: "{{ service_name }}.service"
+break_on_fail: 'true' #fail if not started
+use_batch: false
+port_offset: 0
+force_enable: yes
+### java_home: "/usr/WF/java" # ???
+### java_home: "${JAVA_HOME}"
+# Takes a unit-less value in seconds, or a time span value such as "5min 20s". Pass "0" to disable the timeout logic.
+systemd_timeout_start: 60m
+systemd_timeout_stop: 5m
+systemd_timeout_stop_core: 5m
+
+

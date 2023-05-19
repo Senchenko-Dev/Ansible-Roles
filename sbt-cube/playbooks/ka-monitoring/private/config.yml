@@ -1,0 +1,9 @@
+---
+- name: Install Prometheus Operator
+  hosts: master
+  tasks:
+    - import_role:
+        name: redhat-nfvpe.prometheus-operator
+        tasks_from: install.yml
+      when:
+        - monitoring_install | default(False) | bool

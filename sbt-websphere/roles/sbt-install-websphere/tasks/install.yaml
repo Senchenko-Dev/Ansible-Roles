@@ -1,0 +1,280 @@
+####################-Download WAS from Nexus-########################
+- name: Create folder
+  file:
+    path: "/tmp/WAS_DIR/WAS"
+    state: directory
+    mode: '0755'
+
+- name: Download WAS from Nexus 8.5.5
+  shell: sudo wget --user "{{ nexusUser }}" --password "{{ nexusPass }}" "{{ NEXUS_REPOSITORY_URL_8_5_5 }}"
+  args:
+    chdir: /tmp/WAS_DIR/
+
+- name: Download WAS from Nexus 8.5.5.19
+  shell: sudo wget --user "{{ nexusUser }}" --password "{{ nexusPass }}" "{{ NEXUS_REPOSITORY_URL_8_5_5_19 }}"
+  args:
+    chdir: /tmp/WAS_DIR/
+
+- name: Download agent from Nexus
+  shell: sudo wget --user "{{ nexusUser }}" --password "{{ nexusPass }}" "{{ NEXUS_REPOSITORY_URL_AGENT }}"
+  args:
+    chdir: /tmp/WAS_DIR/WAS
+
+- name: unzip
+  unarchive:
+    src: "/tmp/WAS_DIR/{{ item }}"
+    dest: "/tmp/WAS_DIR/WAS"
+    remote_src: yes
+  with_items:
+    - Install_EIP.sbt-WAS-8.5.5-D-03.003.00-003-distrib.zip
+    - Install_EIP.sbt-WAS-8.5.5.19-D-03.003.00-003-distrib.zip
+
+
+
+
+
+
+##############--prepare-#################
+- block:
+    - name: "Add {{ WAS_SSH_ADMIN_LOGIN }}"
+      user:
+        name: "{{ WAS_SSH_ADMIN_LOGIN }}"
+        shell: /bin/bash
+        comment: "Websphere User"
+        password: "{{ WAS_SSH_ADMIN_PASSWORD | password_hash('sha512') }}"
+    - name: Проливаю ключи пользователей
+      authorized_key:
+        user: "{{ WAS_SSH_ADMIN_LOGIN }}"
+        key: "{{ lookup('file', 'files/{{ WAS_SSH_ADMIN_LOGIN }}/id_rsa.pub') }}"
+        exclusive: "yes"
+    - pam_limits:
+        domain: "{{ WAS_SSH_ADMIN_LOGIN }}"
+        limit_type: "-"
+        limit_item: nofile
+        value: "65535"
+    - pam_limits:
+        domain: "{{ WAS_SSH_ADMIN_LOGIN }}"
+        limit_type: "-"
+        limit_item: nproc
+        value: "32765"
+    - name: Insert values on /etc/sysctl.conf
+      sysctl:
+        name: "{{ item.parameter }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { parameter: "kernel.pid_max", value: "128000" }
+    - name: install the latest version of packages
+      package:
+        name:
+          - "unzip"
+        state: "latest"
+    - name: Install ssldump 64-bit
+      package:
+        name:
+          - "ssldump.x86_64"
+        state: "latest"
+    - name: "Add {{ EFS_TEST_USER }}"
+      user:
+        name: "{{ EFS_TEST_USER }}"
+        shell: /bin/bash
+        comment: "Test User"
+        password: "{{ EFS_TEST_PASSWORD | password_hash('sha512') }}"
+    - name: "Add iac_admin_efs"
+      user:
+        name: "iac_admin_efs"
+        shell: /bin/bash
+        uid: 11998
+        comment: "iac_admin_efs"
+    - name: Recursively change ownership of a directory
+      ansible.builtin.file:
+        path: /var/tcpdump
+        state: directory
+        recurse: yes
+        owner: wasadmin
+        group: wasadmin
+  become: true
+
+
+############-install-installation-manager-###############
+- block:
+    - name: Create folders for Installation Manage
+      file:
+        name: "{{ item }}"
+        state: directory
+      with_items:
+        - "/tmp/ibm_installer/"
+    - name: Unarchive a file that needs to be downloaded
+      unarchive:
+        src: "/tmp/WAS_DIR/WAS/{{ AGENT_VERSION }}"
+        dest: "/tmp/ibm_installer/"
+        remote_src: yes
+    - name: Install Installation Manager
+      command: >
+        /tmp/ibm_installer/install
+        --launcher.ini /tmp/ibm_installer/user-silent-install.ini
+        -acceptLicense
+        -preferences com.ibm.cic.common.core.preferences.preserveDownloadedArtifacts=false
+  become: "true"
+  become_user: "{{ WAS_SSH_ADMIN_LOGIN }}"
+
+
+###############-install-webspher-###################
+- name: Create folders for WAS
+  file:
+    name: "{{ item }}"
+    state: directory
+    owner: "{{ WAS_SSH_ADMIN_LOGIN }}"
+    group: "{{ WAS_SSH_ADMIN_LOGIN }}"
+  with_items:
+    - "{{ WAS_DIR }}/IMShared"
+    - "{{ WAS_DIR }}/AppServer"
+  become: "true"
+
+- block:
+    - name: Install WAS {{ WAS_BASE_PACKAGE }} base
+      command: >
+        /home/{{ WAS_SSH_ADMIN_LOGIN }}/IBM/InstallationManager/eclipse/tools/imcl install {{ WAS_BASE_PACKAGE }}
+        -installationDirectory {{ WAS_DIR }}/AppServer
+        -repositories /tmp/WAS_DIR/WAS/{{ WAS_BASE_VERSION }}
+        -preferences com.ibm.cic.common.core.preferences.preserveDownloadedArtifacts=false
+        -preferences com.ibm.cic.common.core.preferences.ssl.nonsecureMode=true
+        -sharedResourcesDirectory {{ WAS_DIR }}/IMShared
+        -properties user.wasjava=java8
+        -nl eng
+        -acceptLicense
+        -showVerboseProgress
+    - name: Install WAS {{ WAS_FIXPACK_VERSION }} fixpack
+      command: >
+        /home/{{ WAS_SSH_ADMIN_LOGIN }}/IBM/InstallationManager/eclipse/tools/imcl install {{ WAS_FIXPACK_PACKAGE }}
+        -installationDirectory {{ WAS_DIR }}/AppServer
+        -repositories /tmp/WAS_DIR/WAS/{{ WAS_FIXPACK_VERSION }}
+        -preferences com.ibm.cic.common.core.preferences.preserveDownloadedArtifacts=false
+        -preferences com.ibm.cic.common.core.preferences.ssl.nonsecureMode=true
+        -sharedResourcesDirectory {{ WAS_DIR }}/IMShared
+        -properties user.wasjava=java8
+        -nl eng
+        -acceptLicense
+        -showVerboseProgress
+    - name: copy ojdbc libraries
+      copy:
+        src: "{{ item }}"
+        dest: "{{ WAS_DIR }}/AppServer/lib"
+      with_items:
+        - "ojdbc7.jar"
+        - "ojdbc8.jar"
+  become: "true"
+  become_user: "{{ WAS_SSH_ADMIN_LOGIN }}"
+
+
+##################-create-profile-#####################
+- name: create profiles
+  command: >
+    {{ WAS_DIR }}/AppServer/bin/manageprofiles.sh -create
+    -profileName {{ WAS_PROFILE_NAME }}
+    -profilePath {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}
+    -templatePath {{ WAS_DIR }}/AppServer/profileTemplates/default
+    -enableAdminSecurity true
+    -adminUserName {{ WAS_WEB_ADMIN_LOGIN }}
+    -adminPassword {{ WAS_WEB_ADMIN_PASSWORD }}
+    -defaultPorts
+  register: standalone_result
+  changed_when:
+  - standalone_result.stdout.find('INSTCONFSUCCESS != -1')
+  failed_when:
+  - standalone_result.rc != 0
+  - standalone_result.stdout.find('INSTCONFSUCCESS == -1')
+  become: "true"
+  become_user: "{{ WAS_SSH_ADMIN_LOGIN }}"
+
+- block:
+    - name: edit securityEnabled
+      lineinfile:
+        path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/properties/soap.client.props"
+        regexp: "^com.ibm.SOAP.securityEnabled=(.*)$"
+        line: "com.ibm.SOAP.securityEnabled=true"
+    - name: edit loginUserid
+      lineinfile:
+        path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/properties/soap.client.props"
+        regexp: "^com.ibm.SOAP.loginUserid=(.*)$"
+        line: "com.ibm.SOAP.loginUserid={{ WAS_WEB_ADMIN_LOGIN }}"
+    - name: edit loginPassword
+      lineinfile:
+        path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/properties/soap.client.props"
+        regexp: '^com.ibm.SOAP.loginPassword=(.*)$'
+        line: "com.ibm.SOAP.loginPassword={{ WAS_WEB_ADMIN_PASSWORD }}"
+    - name: run PropFilePasswordEncoder.sh
+      command: >
+        {{ WAS_DIR }}/AppServer/bin/PropFilePasswordEncoder.sh
+        {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/properties/soap.client.props com.ibm.SOAP.loginPassword
+    - name: cron for delete was zip log
+      cron:
+        name: "delete was zip log"
+        hour: "1"
+        minute: "0"
+        job: "find {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/logs/ \\( -name \\*.zip -o -name \\*.tmp -name \\*dump\\* -name \\*Snap\\* \\) -type f -mmin +1440 -delete"
+  become: "true"
+  become_user: "{{ WAS_SSH_ADMIN_LOGIN }}"
+
+#################-create-systemd-service-####################
+- block:
+    - name: Copy was systemd
+      template:
+        src: "etc/systemd/system/websphere.service.j2"
+        dest: "/etc/systemd/system/websphere.service"
+      notify:
+        - restart_websphere
+  become: true
+- meta: flush_handlers
+
+################-postinstall-#############################
+- block:
+    - name: "Add {{ DEVELOPER_SSH_LOGIN }}"
+      user:
+        name: "{{ DEVELOPER_SSH_LOGIN }}"
+        shell: /bin/bash
+        comment: "Developer User"
+        password: "{{ DEVELOPER_SSH_PASSWORD | password_hash('sha512') }}"
+    - name: Добавляю права суперпользователя
+      copy:
+        content: "{{ DEVELOPER_SSH_LOGIN }} ALL=NOPASSWD:/usr/bin/systemctl status websphere, /usr/bin/systemctl stop websphere, /usr/bin/systemctl start websphere, /usr/bin/systemctl restart websphere\n"
+        dest: "/etc/sudoers.d/{{ DEVELOPER_SSH_LOGIN }}"
+        validate: "/usr/sbin/visudo -cf %s"
+  become: true
+
+- block:
+    - name: "Verifiy if profile {{ WAS_PROFILE_NAME }} already exists"
+      stat:
+        path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}"
+      register: profile_already_exists
+    #~ - name: "Verifiy if was_create_user already exists"
+      #~ stat:
+        #~ path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_create_user.py"
+      #~ register: was_create_user_exists
+      #~ when: profile_already_exists.stat.exists == true
+    - name: "Generate Response file"
+      template:
+        src: "was_create_user.py.j2"
+        dest: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_create_user.py"
+    - name: "create user"
+      command: >
+        {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/wsadmin.sh
+        -lang jython
+        -port {{ WAS_ADMIN_SOAP_PORT }}
+        -username {{ WAS_WEB_ADMIN_LOGIN }}
+        -password {{ WAS_WEB_ADMIN_PASSWORD }}
+        -f {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_create_user.py
+      notify:
+        - restart_websphere
+    #~ register: cout
+      #~ changed_when: cout.rc == 0
+      #~ when: >
+        #~ was_create_user_exists.stat.exists is defined and
+        #~ was_create_user_exists.stat.exists|bool == false
+    #~ - name: "remove was_create_user.py"
+      #~ file:
+        #~ path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_create_user.py"
+        #~ state: absent
+  become: "true"
+  become_user: "{{ WAS_SSH_ADMIN_LOGIN }}"

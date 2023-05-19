@@ -1,0 +1,4 @@
+vars_to_check:
+  - installation_type
+  - nexus_repository_url
+#  - target_version

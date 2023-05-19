@@ -1,0 +1,11 @@
+- name: Download WildFly distr to {{ tmpdir.path }}
+  get_url:
+    url: "{{ wildfly_url }}"
+    dest: "{{ tmpdir.path }}/distrib.zip"
+    validate_certs: no
+    username: "{{ nexusUser }}"
+    password: "{{ nexusPass }}"
+    mode: '0755'
+
+- name: Debug
+  shell: ls -a {{ tmpdir.path }} | grep distrib.zip

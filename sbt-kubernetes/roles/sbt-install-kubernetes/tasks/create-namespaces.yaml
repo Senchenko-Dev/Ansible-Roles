@@ -1,0 +1,37 @@
+---
+- name: Check namespace
+  shell: "kubectl get namespace"
+  register: Check_namespace
+
+- name: Create namespace,Role,Bind k8s
+  block:
+  - name: create namespace
+    shell: "kubectl create namespace {{ custom_namespace_name }}"
+
+  - name: Get_name_secret_key
+    shell: "kubectl -n {{ custom_namespace_name }} get serviceaccount/default -o jsonpath='{.secrets[0].name}'"
+    register: secret
+
+
+  - name: Get_sercret_token
+    shell: "kubectl -n {{ custom_namespace_name }} get secret/{{ secret.stdout_lines | join('') }} -o jsonpath='{.data.token}' | base64 --decode"
+    register: token
+
+
+  - name: Create folder
+    file:
+      path: "{{ token_dir }}/tokens"
+      state: directory
+    
+
+  - name: Save to file
+    copy:
+     content: "token: {{ token.stdout_lines | join('') }}"
+     dest: "{{ token_dir }}/tokens/{{ custom_namespace_name }}.yaml"
+     
+   
+
+  - name: Create Rolebilding
+    shell: "kubectl create rolebinding {{ custom_rolebinding_name }} --clusterrole=admin --user=system:serviceaccount:{{ custom_namespace_name }}:default -n {{ custom_namespace_name }}"
+
+  when: 'custom_namespace_name | string not in Check_namespace.stdout'

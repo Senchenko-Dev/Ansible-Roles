@@ -1,0 +1,129 @@
+---
+- name: Create install WF directory
+  file:
+    path: "{{ wf_install_dir }}"
+    state: directory
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: 0755
+  become: yes
+
+- name: Create other directory
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: 0755
+  with_items:
+    - "{{ wf_install_dir }}/READONLY"
+    - "{{ wf_install_dir }}/backup"
+    - "{{ wf_install_dir }}/standalone/log"
+  become: yes
+
+- name: Pre-clean tmp dir if exists
+  file:
+    path: /tmp/987
+    state: absent
+  ignore_errors: yes
+
+- name: Create temp directory
+  file:
+    path: /tmp/987  # todo WTF ????
+    state: directory
+    recurse: yes
+  register: tmpdir
+
+- name: Create unpack directory
+  file:
+    path: "{{ tmpdir.path }}/unpacked"
+    state: directory
+    recurse: yes
+  register: unpackdir
+
+- name: Get distr
+  include_tasks: install-get-distr.yml
+
+# todo В нексусе в архиве папка, но в оригинале с интернета нет вложенной папки!
+# todo почему не сразу в  wf_install_dir  ? (проверить содержимое?)    зачем remote_sorce ?
+- name: Unzip distrib
+  unarchive:
+    src: "{{ tmpdir.path }}/distrib.zip"
+    dest: "{{ unpackdir.path }}"
+    remote_src: yes
+  become: yes
+  no_log: true
+
+- name: subfolder
+  shell:
+    chdir: "{{ unpackdir.path }}"
+    cmd: ls | grep wildfly
+  register: subfolder
+  failed_when: no
+
+- set_fact:
+    distro_root_dir: "{{ subfolder.stdout if subfolder.stdout!='' else '' }}"
+
+#- name: version from zip
+#  shell: >
+#    {{ unpackdir.path }}/{{ distro_root_dir }}/bin/standalone.sh -version | grep WildFly | sed -r 's/^[^(]+ ([0-9\.]+Final).+$/\1/'
+#  register: wildfly_version
+
+- name: ls
+  shell: "{{ item }}"
+  with_items:
+    - "ls {{ unpackdir.path }}"
+    - "ls {{ wf_install_dir }}"
+
+#########
+#- name: install openjdk
+#  include_tasks: install.yml
+#########
+
+# todo copy ???  remote_src
+- name: Copying WF to final location
+  shell: "cp -R -f {{ unpackdir.path }}/{{ distro_root_dir }}/* {{ wf_install_dir }}"
+  become: yes
+  no_log: true
+
+- name: Set permissions
+  file:
+    path: "{{ item }}"
+    state: directory
+    recurse: yes
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+  become: yes
+  with_items:
+    - "{{ wf_install_dir }}"
+    - "{{ wf_install_dir }}/READONLY"
+    - "{{ wf_install_dir }}/backup"
+    - "{{ wf_install_dir }}/standalone/log"
+#  todo почему ".." ? структура ППРБ! Нужны ли эти папки (убрал .. здесь и выше)?
+
+
+- name: Clean log dir
+  shell: "rm -rf *"
+  args:
+    chdir: "{{ wf_install_dir }}/standalone/log"
+  become: yes
+  ignore_errors: yes
+
+- name: ls
+  shell: "{{ item }}"
+  with_items:
+    - "ls -la {{ wf_install_dir }}"
+    ###- "ls -la {{ java_home | default('/usr/java/latest') }}" # NO ??? wtf ?!
+    - "export"
+    - "which java"
+    - "ls -la /home/{{ wf_os_user }}"
+    - "cat /home/{{ wf_os_user }}/.bash_profile"
+  become: yes
+  ignore_errors: yes
+
+- name: Delete tmp directory
+  file:
+    path: "{{ tmpdir.path }}"
+    state: absent
+  become: yes
+  ignore_errors: yes

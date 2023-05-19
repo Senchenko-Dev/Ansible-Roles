@@ -1,0 +1,39 @@
+- block:
+    - name: create dir
+      file:
+        path: "{{item.dest}}"
+        state: directory
+#        mode: "{{mode}}" # If mode is not specified and the destination filesystem object does exist, the mode of the existing filesystem object will be used.
+        owner: "{{owner}}"
+        group: "{{group}}"
+      loop: "{{overwrite_files}}"
+      vars:
+        overwrite_files: "{{overwrite_files_wildfly}}"
+        group: "{{ wf_os_group }}"
+        owner: "{{ wf_os_user }}"
+        mode: 0755
+        force: yes
+
+    - name: overwrite files
+      template:
+        src: "{{item.src | basename}}"
+        dest: "{{item.dest}}/{{item.src | basename}}"
+        force: "{{ force | default('yes') }}"
+#        mode: "{{mode}}" # If mode is not specified and the destination file does exist, the mode of the existing file will be used.
+        owner: "{{owner}}"
+        group: "{{group}}"
+      loop: "{{overwrite_files}}"
+      vars:
+        overwrite_files: "{{overwrite_files_wildfly}}"
+        group: "{{ wf_os_group }}"
+        owner: "{{ wf_os_user }}"
+        mode: 0644
+        force: yes
+
+    - name: Startup wildfly console
+      include_role:
+        name: wildfly
+        tasks_from: control/control-restart-wf-false-app
+
+  become: yes
+  become_user: "{{ wf_os_user }}"

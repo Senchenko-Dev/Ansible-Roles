@@ -1,0 +1,16 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  serial: "{{ serial | default('100%') }}"
+  vars:
+    ansible_user: "{{ become_user }}"
+    ansible_password: "{{ ansible_become_pass }}"
+
+  tasks:
+
+    - name: Gather variables from inventory
+      include_tasks: gather-from-inventory.yml
+
+    - name: Check variables if exists
+      include_role:
+        name: wildfly
+        tasks_from: pre-task

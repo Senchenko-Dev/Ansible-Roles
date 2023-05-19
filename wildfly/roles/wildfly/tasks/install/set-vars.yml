@@ -1,0 +1,28 @@
+---
+# подходит для терраформа
+
+- name: Which Java?
+  shell: which java
+  register: which_java
+
+- name: Java home from settings
+  shell: java -XshowSettings:Properties -version 2>&1 > /dev/null | grep 'java.home'| grep -e '/.*' -o
+  register: java_home_out
+
+- name: Set vars
+  set_fact:
+    java_home: "{{ java_home_out.stdout }}"
+    # todo  java -XshowSettings:Properties -version 2>&1 > /dev/null | grep 'java.home'
+    # todo       java.home = /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.322.b06-1.el7_9.x86_64/jre
+
+- name: Set vars
+  set_fact:
+    java_home_for_service: "{{ java_home }}"
+    env_for_service: '/bin/env'
+  when: ansible_distribution != 'Altlinux'
+
+- name: Set vars for {{ ansible_distribution }}
+  set_fact:
+    java_home_for_service: "{{ java_home }}" ### /usr/bin/java -> /usr
+    env_for_service: '/usr/bin/env' ### /bin/env -> /usr/bin/env
+  when: ansible_distribution == 'Altlinux'

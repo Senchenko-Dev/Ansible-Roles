@@ -1,0 +1,41 @@
+---
+
+  - block:
+
+      - name: include playbook set vars
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_vars.yml"
+
+      - name: include playbook check os requirerements
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_os.yml"
+
+      - name: include playbook for creation groups and users
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_group_user.yml"
+
+      - name: include playbook set sudoers
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_sudoers.yml"
+
+      - name: include playbook set limits
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_limits.yml"
+
+      - name: include playbook set mountpoints
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_mounts.yml"
+
+    when:
+      - (inventory_hostname != "localhost")
+
+  - block:
+
+      - name: include playbook set sysctl values
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_set_sysctl.yml"
+
+      - name: include playbook install packages
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_install_packages.yml"
+
+      - name: include playbook install libs
+        import_tasks: "{{ playbook_dir }}/roles/prereq_nginx_iag/tasks/prereq_nginx_iag_install_libs.yml"
+
+    when:
+      - (inventory_hostname != "localhost")
+    become: yes
+    become_user: "{{ prereq_nginx_iag_privileged_user }}"
+    become_method: sudo

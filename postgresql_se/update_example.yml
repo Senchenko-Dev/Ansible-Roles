@@ -1,0 +1,7 @@
+---
+- name: Upgrade PGSE version
+  hosts: all # может запускаться на все постгресы, необходимо учесть, что это может быть несколько кластеров. Внутри кластера также надо учесть, что есть мастер и реплика.
+  tasks:
+    - include_role:
+         name: postgresql_se
+         tasks_from: update

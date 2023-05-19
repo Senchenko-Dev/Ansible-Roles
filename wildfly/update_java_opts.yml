@@ -1,0 +1,35 @@
+- hosts: "{{ hosts_group_WF }}"
+  serial: "{{ serial | default('100%') }}"
+  vars:
+    zone_prefix: 'zone0'
+    group_prefix: ''
+    aj_prefix: ''
+    z_prefix: [""]
+    ######gather_facts: true
+
+  tasks:
+
+    - name: Create property file
+      include_role:
+        name: wildfly
+        tasks_from: configure-wf-create-java-opts-file
+
+    - name: Startup wildfly console
+      include_role:
+        name: wildfly
+        tasks_from: control-restart-wf-false-app
+
+    - name: Get system properties list
+      include_vars:
+        file: "{{ WORKSPACE }}/wf_sys_props.conf"
+        name: wf_system_properties
+
+    - name: Configure WildFly system properties simple
+      include_role:
+        name: wildfly
+        tasks_from: configure-wf-sys-props-simple
+      with_dict: "{{ wf_system_properties }}"
+      vars:
+        property_name: "{{ item.key }}"
+        property_value: "{{ item.value }}"
+      ignore_errors: yes

@@ -1,0 +1,32 @@
+---
+# Add limits values
+- name: change soft limit nofile
+  pam_limits:
+    domain: nginx-iag
+    limit_type: soft
+    limit_item: nofile
+    value: 65535
+  become: yes
+- name: change hard limit nofile
+  pam_limits:
+    domain: nginx-iag
+    limit_type: hard
+    limit_item: nofile
+    value: 65535
+  become: yes
+
+- name: change soft limit nproc
+  pam_limits:
+    domain: nginx-iag
+    limit_type: soft
+    limit_item: nproc
+    value: 65535
+  become: yes
+- name: change hard limit nproc
+  pam_limits:
+    domain: nginx-iag
+    limit_type: hard
+    limit_item: nproc
+    value: 65535
+  become: yes
+

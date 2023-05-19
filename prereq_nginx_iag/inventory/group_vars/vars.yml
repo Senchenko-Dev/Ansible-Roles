@@ -1,0 +1,93 @@
+---
+prereq_nginx_iag_privileged_user: "ansible-deploy-user" # Priveleged with sudo user
+# LVMs
+prereq_nginx_iag_mounts:
+  nginx-iag:
+    size: 256 # Size for lvm
+    mount_name: "tcpdump"
+    vg_name: "rootvg"
+    lv_name: "tcpdump"
+    mount_path: "/var/tcpdump"
+    dev_path: "/dev/mapper/rootvg-tcpdump"
+    owner: "nginx-iag"
+    group: "nginx-iag"
+    filesystem: ext4
+#  opt:
+#    size: "100%FREE"
+#    mount_name: "opt"
+#    vg_name: "rootvg"
+#    lv_name: "rootvg-lvopt"
+#    mount_path: "/opt"
+#    dev_path: "/dev/mapper/rootvg-lvopt"
+#    owner: "root"
+#    group: "root"
+#    filesystem: ext4
+
+# Mounts and limits
+prereq_nginx_iag_limits:
+  root:
+    mountpoint: "/"
+    disk_free_limit: "0.5"
+  nginx-iag:
+    mountpoint: "/opt"
+    disk_free_limit: "0.1"
+#  tcpdump:
+#    mountpoint: "/var/tcpdump"
+#    disk_free_limit: "0.1"
+# Users and groups
+prereq_nginx_iag_user_group:
+  nginx-iag:
+    username: "nginx-iag"
+    usergroup: "nginx-iag"
+    homedir: "/home/nginx-iag"
+    groups: "nginx-iag, efs_tester"
+    expires: -1
+  log_rsys:
+    username: "log_rsys"
+    usergroup: "log_rsys"
+    homedir: "/home/log_rsys"
+    groups: "nginx-iag, log_rsys, efs_tester"
+    expires: -1
+  efs_tester:
+    username: "efs_tester"
+    usergroup: "efs_tester"
+    homedir: "/home/efs_tester"
+    groups: "nginx-iag, log_rsys"
+    expires: -1
+
+# Settings for iac_admin_efs user
+prereq_nginx_iag_iac_admin_efs:
+  iac_admin_efs:
+    username: "iac_admin_efs"
+    usergroup: "iac_admin_efs"
+    homedir: "/home/iac_admin_efs"
+    shell: "/bin/bash"
+    uid: 11998
+    expires: -1
+
+# Sysctl values
+prereq_nginx_iag_sysctl_config: # Sysctl dict vars
+  net.core.netdev_max_backlog: 10000
+  net.core.somaxconn: 9600
+  net.ipv4.tcp_syncookies: 1
+  net.ipv4.tcp_max_syn_backlog: 9600
+  net.ipv4.tcp_max_tw_buckets: 720000
+  net.ipv4.tcp_tw_recycle: 1
+  net.ipv4.tcp_timestamps: 1
+  net.ipv4.tcp_tw_reuse: 1
+  net.ipv4.tcp_fin_timeout: 30
+  net.ipv4.tcp_keepalive_time: 1800
+  net.ipv4.tcp_keepalive_probes: 7
+  net.ipv4.tcp_keepalive_intvl: 30
+  net.core.wmem_max: 33554432
+  net.core.rmem_max: 33554432
+  net.core.rmem_default: 8388608
+  net.core.wmem_default: 4194394
+  net.ipv4.tcp_rmem: 4096 8388608 16777216
+  net.ipv4.tcp_wmem: 4096 4194394 16777216
+
+# libs url
+prereq_nginx_iag_rsysloglib_url: "https://nexus.swec.sbercloud.ru/nexus/content/repositories/Nexus_PROD/Nexus_PROD/CI00360902_TECH_CORE/D-09.004.03-01/CI00360902_TECH_CORE-D-09.004.03-01-distrib.zip"
+# /etc/rc.local values
+prereq_nginx_iag_rc_local:
+  interface_name: "eth0"

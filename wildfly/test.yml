@@ -1,0 +1,32 @@
+---
+### Файл в соответствии с примером СТД-11 https://confluence.sberbank.ru/pages/viewpage.action?pageId=4833510147
+### Образец тестового плейбука
+- hosts: all
+
+#### вариант первый
+  roles:
+    - test
+
+#### вариант второй
+  tasks:
+    - import_role:
+        name: test
+
+#### вариант третий, плохой:
+### Все инклуды кроме install должны иметь также тег never
+#    - include_role:
+#        name: test
+#      tags:
+#        - install
+#
+#    - include_role:
+#        name: test
+#      tags:
+#        - install
+#        - configure
+#
+#    - include_role:
+#        name: test
+#      tags:
+#        - never
+#        - uninstall

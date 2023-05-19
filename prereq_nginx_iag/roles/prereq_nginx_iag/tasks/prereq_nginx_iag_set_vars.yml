@@ -1,0 +1,35 @@
+
+---
+  # Include vars from vars.yml
+- name: include common vars yml
+  include_vars: "{{ item }}"
+  with_items: "{{ (inventory_dir ~ '/group_vars/*.yml') | fileglob }}"
+  no_log: true
+
+  # Set user_names value for decrypt values from _passwords.conf
+- name: set users names variable
+  set_fact:
+    user_names: "{{ user_names | default([]) + [ 'prereq_nginx_iag.' + item.key + '.password'] }}"
+  with_dict: "{{ prereq_nginx_iag_user_group }}"
+  no_log: true
+
+  # Decrypt user passwords from _passwords.conf
+  # Playbook uses encrypted _passwords.conf
+  # To decrypt _passwords.conf file use:
+  # openssl aes-256-cbc -d -in _passwords.conf -out _passwords.conf.plain
+  # To encrypt _passwords.conf file use:
+  # openssl enc -aes-256-cbc -in _passwords.conf.plain -out _passwords.conf
+  # Password values must be defined in format: prereq_nginx_iag.<username defined in vars.yml>.password="<password>"
+  # Example: prereq_nginx_iag.nginx-iag.password="123456"
+- name: get password parameters from _passwords.conf
+  get_filter_enc_parameters:
+    #vault_pass: "{{ lookup('env','VAULT_PASS') }}"
+    vault_pass: "{{ vault_for_pass }}"
+    vault_type: "{{ secret_file_type | default('OPENSSL_AES_256_CBC') }}"
+    vault_file: "{{ inventory_dir }}/_passwords.conf"
+    vault_dir: "{{ inventory_dir }}"
+    fetch_keys: "{{ user_names }}"
+    set_fact_var: "{{ 'vault_properties' }}"
+    role_name: "{{ role | default('role-default')}}"
+  no_log: true
+  delegate_to: localhost

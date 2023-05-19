@@ -1,0 +1,192 @@
+---
+###
+### from task migrate_WF_new.yml
+###
+
+- name: Conversion wf_install_dir
+  set_fact:
+    wf_install_dir: "{{ wf_install_dir | regex_replace('/$', '') }}"
+- debug:
+    var: wf_install_dir
+
+###- name: Stop WildFly service
+###  systemd:
+###    name: wildfly.service
+###    state: stopped
+###    become: yes
+###  ignore_errors: true
+- name: Stop WildFly service
+  include_tasks: tech_core_stop_console_wf.yml
+
+##- name: Stop WildFly service
+##  shell: sudo systemctl stop wildfly.service
+
+- name: Delete tmp dir if exists
+  file:
+    path: /tmp/987
+    state: absent
+  ignore_errors: yes
+
+- name: Temporary dir creation
+  file:
+    path: /tmp/987 # todo tmpdir?
+    state: directory
+    recurse: yes
+  register: tmpdir
+
+- name: Getting migration distrib from jenkins slave
+  copy:
+    src: "{{ WORKSPACE }}/{{ nexus_url_dist_migrate | basename }}"
+    dest: "{{ tmpdir.path }}"
+
+- name: Unzip migration distrib
+  unarchive:
+    src: "{{ tmpdir.path }}/{{ nexus_url_dist_migrate | basename }}"
+    dest: "{{ tmpdir.path }}"
+    remote_src: yes
+
+- name: Add test module with links 2 all overlays
+  command: "sh {{ tmpdir.path }}/add_app.sh"
+
+- name: Getting WildFly distrib from jenkins slave
+  copy:
+    src: "{{ WORKSPACE }}/{{ nexus_url_dist_wildfly | basename }}"
+    dest: "{{ tmpdir.path }}"
+
+- name: Unzip WildFly distrib
+  unarchive:
+    src: "{{ tmpdir.path }}/{{ nexus_url_dist_wildfly | basename }}"
+    dest: "{{ tmpdir.path }}"
+    remote_src: yes
+  no_log: true
+
+- name: Backing up old WF
+  ###command: mv /usr/WF/WF_PPRB /usr/WF/WF_PPRB_OLD
+  command: "mv {{ wf_install_dir }} {{ wf_install_dir }}_OLD"
+
+- name: Define new WF dir
+  shell: "ls {{ tmpdir.path }}/ | grep wildfly"
+  register: tmp_wf_dir
+
+- name: Moving distrib to final location
+  ###command: mv {{ tmpdir.path }}/wildfly-15.0.1.Final /usr/WF/WF_PPRB
+  #command: "mv {{ tmpdir.path }}/{{ nexus_url_dist_wildfly | basename | replace ('.zip', '') }} {{ wf_install_dir }}"
+  command: "mv {{ tmpdir.path }}/{{ tmp_wf_dir.stdout }} {{ wf_install_dir }}"
+
+- name: Copying directories
+  command: "cp -r {{ item.src }} {{ item.dest }}"
+  ###with_items:
+  ###  - { src: '/usr/WF/WF_PPRB_10/SSL', dest: '/usr/WF/WF_PPRB'}
+  ###  - { src: '/usr/WF/WF_PPRB_10/standalone/lib', dest: '/usr/WF/WF_PPRB/standalone'}
+  ###  - { src: '/usr/WF/WF_PPRB_10/service', dest: '/usr/WF/WF_PPRB'}
+  with_items:
+    - { src: '{{ wf_install_dir }}_OLD/SSL', dest: '{{ wf_install_dir }}'}
+    - { src: '{{ wf_install_dir }}_OLD/standalone/lib', dest: '{{ wf_install_dir }}/standalone'}
+    - { src: '{{ wf_install_dir }}_OLD/service', dest: '{{ wf_install_dir }}'}
+
+- name: Copying files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: yes
+  with_items:
+    ###  - { src: '/usr/WF/WF_PPRB_10/bin/SRCJNKS', dest: '/usr/WF/WF_PPRB/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/SRCJNKS', dest: '{{ wf_install_dir }}/bin'}
+  ignore_errors: yes
+
+- name: Copying files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    remote_src: yes
+  ###  with_items:
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/start.sh', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/stop.sh', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/restart.sh', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/service.sh', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/rotate.sh', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/startApp.sh', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '/usr/WF/WF_PPRB_10/bin/service.conf', dest: '/usr/WF/WF_PPRB/bin'}
+  ####    - { src: '/usr/WF/WF_PPRB_10/bin/SRCJNKS', dest: '/usr/WF/WF_PPRB/bin'}
+  ###    - { src: '{{ tmpdir.path }}/standalone.conf', dest: '/usr/WF/WF_PPRB/bin'}
+  with_items:
+    - { src: '{{ wf_install_dir }}_OLD/bin/start.sh', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/stop.sh', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/restart.sh', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/service.sh', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/rotate.sh', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/startApp.sh', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ wf_install_dir }}_OLD/bin/service.conf', dest: '{{ wf_install_dir }}/bin'}
+    - { src: '{{ tmpdir.path }}/standalone.conf', dest: '{{ wf_install_dir }}/bin'}
+  ignore_errors: yes
+
+- name: Migration
+  ###command: {{ tmpdir.path }}/jboss-server-migration/jboss-server-migration.sh -e {{ tmpdir.path }}/jboss-server-migration/configuration/environment.properties -s /usr/WF/WF_PPRB_10/ -t /usr/WF/WF_PPRB/ -i false
+  command: "sh {{ tmpdir.path }}/jboss-server-migration/jboss-server-migration.sh -e {{ tmpdir.path }}/jboss-server-migration/configuration/environment.properties -s {{ wf_install_dir }}_OLD -t {{ wf_install_dir }} -i false"
+
+- name: Copy content from wf old
+  shell: "mkdir -p {{ wf_install_dir }}/standalone/data/content"
+- shell: "cp -r {{ wf_install_dir }}_OLD/standalone/data/content/* {{ wf_install_dir }}/standalone/data/content"
+
+- name: Add java_opts
+  command: "sh {{ tmpdir.path }}/param.sh"
+
+- name: Correct standalone.conf
+  replace:
+    ###path: /usr/WF/WF_PPRB/bin/standalone.conf
+    path: "{{ wf_install_dir }}/bin/standalone.conf"
+    regexp: "^(.*)(JAVA_OPTS -Dnode.id=wf_`hostname)(.*)$"
+    replace: "JAVA_OPTS=\"$JAVA_OPTS -Dnode.id=wf_`hostname -s`\""
+
+- name: Correct standalone.conf
+  replace:
+    ###path: /usr/WF/WF_PPRB/bin/standalone.conf
+    path: "{{ wf_install_dir }}/bin/standalone.conf"
+    regexp: "^(.*)(JAVA_OPTS -s`)(.*)$"
+    replace: ""
+
+- name: Find files 4 delete
+  find:
+    ###path: /usr/WF/WF_PPRB/standalone/configuration
+    path: "{{ wf_install_dir }}/standalone/configuration"
+    patterns: "*.beforeMigration"
+  register: files2remove
+
+- name: Remove files
+  file:
+    path: "{{ item.path }}"
+    state: absent
+  with_items:
+    - '{{ files2remove.files }}'
+
+- name: Remove WildFly and migration distrib
+  file:
+    path: "{{ tmpdir.path }}/{{ item }}"
+    state: absent
+  with_items:
+    ###    - wildfly-15.0.1.Final.zip
+    ###    - migration-1.0.zip
+    - "{{ nexus_url_dist_wildfly | basename }}"
+    - "{{ nexus_url_dist_migrate | basename }}"
+
+- name: Copy migrated standalone.xml
+  shell: "cp {{ wf_install_dir }}/standalone/configuration/standalone_xml_history/standalone.boot.xml {{ wf_install_dir }}/standalone/configuration/standalone.xml"
+
+- name: Delete test module
+  command: "sh {{ tmpdir.path }}/dell_app.sh"
+
+- name: drop tmpdir
+  file:
+    path: "{{ tmpdir.path }}"
+    state: absent
+
+#- name: "Start WildFly service"
+#  systemd:
+#    name: wildfly.service
+#    state: restarted
+#  become: yes
+#  ignore_errors: true
+
+#### ???
+###- name: Start WildFly service
+###  include_tasks: control-start-app-wf.yml

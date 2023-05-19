@@ -1,0 +1,12 @@
+- hosts: "{{ hosts_group_WF }}"
+  max_fail_percentage: 0
+  tasks:
+  - name: install-deps
+    include_role:
+      name: docker-install
+      tasks_from: install-deps
+
+  - name: install
+    include_role:
+      name: docker-install
+      tasks_from: install

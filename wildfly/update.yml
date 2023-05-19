@@ -1,0 +1,45 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+
+    - name: Set facts on local
+      set_fact:
+        nexus_username: "{{ lookup('env', 'nexusUser') }}"
+        nexus_password: "{{ lookup('env', 'nexusPass') }}"
+    - debug: msg="{{nexus_username}}"
+
+    - name: Getting migration distrib
+      get_url:
+        ###url: http://nexus.abc.ru:8081/nexus/service/local/repositories/sbt-qa_thirdparty/content/com/sbt/wildfly/migration/1.0/migration-1.0.zip
+        url: "{{ nexus_url_dist_migrate }}"
+        url_username: "{{ nexus_username }}"
+        url_password: "{{ nexus_password }}"
+        force_basic_auth: true
+        dest: "{{ WORKSPACE }}"
+        validate_certs: no
+
+    - name: Getting WildFly distrib
+      get_url:
+        ###url: http://1.1.1.1/JBoss/WF/wildfly-15.0.1.Final.zip
+        url: "{{ nexus_url_dist_wildfly }}"
+        url_username: "{{ nexus_username }}"
+        url_password: "{{ nexus_password }}"
+        force_basic_auth: true
+        dest: "{{ WORKSPACE }}"
+        validate_certs: no
+
+- hosts: "{{ hosts_group_WF }}"
+  serial: "{{ serial | default('100%') }}"
+#  ###  vars:
+#  ###    zone_prefix: 'zone0'
+#  ###    group_prefix: ''
+#  ###    aj_prefix: ''
+#  ###    z_prefix: [""]
+#  ###    gather_facts: true
+  tasks:
+
+    - name: Update WF
+      include_role:
+        name: wildfly
+        tasks_from: update

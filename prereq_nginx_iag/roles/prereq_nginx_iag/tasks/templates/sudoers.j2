@@ -1,0 +1,15 @@
+Defaults:nginx-iag !requiretty
+
+Cmnd_Alias NGINXIAGNGINX = \
+/opt/nginx-iag/sbin/nginx -p /opt/nginx-iag -c /opt/nginx-iag/conf/nginx.conf, \
+/opt/nginx-iag/sbin/nginx -s stop -p /opt/nginx-iag -c /opt/nginx-iag/conf/nginx.conf, \
+/opt/nginx-iag/sbin/nginx -s reload -p /opt/nginx-iag -c /opt/nginx-iag/conf/nginx.conf, \
+/opt/nginx-iag/sbin/nginx -t -p /opt/nginx-iag -c /opt/nginx-iag/conf/nginx.conf
+
+nginx-iag ALL=NOPASSWD:NGINXIAGNGINX
+nginx-iag ALL=(root) NOPASSWD:/opt/nginx-iag/reload.sh
+nginx-iag ALL=(root) NOPASSWD:/opt/nginx-iag/start.sh
+nginx-iag ALL=(root) NOPASSWD:/opt/nginx-iag/stop.sh
+nginx-iag ALL=(root) NOPASSWD:/opt/nginx-iag/test.sh
+nginx-iag ALL=(root) NOPASSWD:/usr/sbin/tcpdump -w /var/tcpdump*
+nginx-iag ALL=(root) NOPASSWD:/usr/sbin/ssldump -r /var/tcpdump*

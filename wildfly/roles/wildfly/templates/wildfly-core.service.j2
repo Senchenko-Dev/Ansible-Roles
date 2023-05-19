@@ -1,0 +1,38 @@
+[Unit]
+Description={{ wf_service }} with GS v{{ wf_service_version }}
+After=syslog.target
+After=network.target
+PartOf={{ wfapp_service }}
+
+[Service]
+Type=forking
+User={{ wf_os_user }}
+Group={{ wf_os_group }}
+
+EnvironmentFile={{ service_dir }}/wildfly.env
+WorkingDirectory={{ wf_home }}
+#ExecStart=/bin/env bash {{ service_dir }}/service.sh start
+#ExecStop=/bin/env bash {{ service_dir }}/service.sh stop
+ExecStart={{ env_for_service }} bash {{ service_dir }}/service.sh start
+ExecStop={{ env_for_service }} bash {{ service_dir }}/service.sh stop
+PIDFile={{ wf_home }}/standalone/log/wf.pid
+
+##
+# лимиты выставлены по ПРОМ примеру
+# если требуется, выствить -Xmx + 20%
+#MemoryLimit=65G
+LimitNOFILE=256000
+LimitNPROC=256000
+OOMScoreAdjust=-1000
+
+# вывод писать в syslog
+StandardOutput=syslog
+SyslogIdentifier={{ wf_service }}
+
+#TimeoutSec=600
+TimeoutStartSec={{ systemd_timeout_start }}
+TimeoutStopSec={{ systemd_timeout_stop_core }}
+#Restart=always
+
+[Install]
+WantedBy=multi-user.target

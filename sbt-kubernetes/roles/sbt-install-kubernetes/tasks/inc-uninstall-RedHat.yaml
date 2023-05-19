@@ -1,0 +1,130 @@
+  - name: kubectl delete node --all
+    shell: kubectl delete node --all
+    become: yes
+    become_user: "{{ kube_become_user }}"
+    ignore_errors: yes
+
+
+  - name: Stop docker
+    shell: systemctl stop docker
+
+
+  - name: Stop Kubelet
+    shell: systemctl stop kubelet
+
+
+  - name: Kubeadm reset
+    shell: kubeadm reset -f
+
+
+  - name: Delete ~/.kube
+    file:
+      path: /home/{{ kube_become_user }}/.kube
+      state: absent
+
+
+  - name: Delete kubelet
+    yum:
+      name: kubelet
+      state: absent
+
+
+  - name: Delete kubeadm
+    yum:
+      name: kubeadm
+      state: absent
+
+
+  - name: Delete kubectl
+    yum:
+      name: kubectl
+      state: absent
+
+
+  - name: delete folder kubernetes
+    file:
+      path: /etc/kubernetes
+      state: absent
+
+
+  - name: delete folder kubelet
+    file:
+      path: /var/libkub/kubelet
+      state: absent
+
+
+  - name: delete folder etcd
+    file:
+      path: /var/lib/etcd
+      state: absent
+
+
+  - name: delete repo Kubernetes
+    file:
+      path: /etc/yum.repos.d/kubernetes.repo
+      state: absent
+
+
+  - name: Start docker
+    shell: systemctl start docker
+
+  - name: Delete  containers
+    shell: docker rm -vf $(docker ps -a -q)
+
+
+  - name: Delete images
+    shell: docker rmi -f $(docker images -a -q)
+
+
+  - name: Delete docker
+    yum:
+     name: docker
+     state: absent
+
+
+  - name: Delete docker-client
+    yum:
+      name: docker-client
+      state: absent
+
+
+  - name: Delete docker-client-latest
+    yum:
+      name: docker-client-latest
+      state: absent
+
+
+  - name: docker-common
+    yum:
+      name: docker-common
+      state: absent
+
+
+  - name: docker-logrotate
+    yum:
+      name: docker-logrotate
+      state: absent
+
+
+  - name: docker-rhel-push-plugin
+    yum:
+      name: docker-rhel-push-plugin
+      state: absent
+
+
+  - name: Delete folder /var/lib/docker
+    file:
+      path: /var/lib/docker
+      state: absent
+
+
+  - name: Delete folder /etc/docker
+    file:
+      path: /etc/docker
+      state: absent
+
+
+  - name: Delete folder /var/run/docker.sock
+    file:
+      path: /var/run/docker.sock
+      state: absent

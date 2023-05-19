@@ -1,0 +1,19 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  tasks:
+
+    - name: Check core service
+      shell: systemctl show "{{ wf_service }}" | grep BindsTo
+      register: core_service
+      ignore_errors: true
+      when: wf_service is defined
+    
+    - name: Set variable
+      set_fact:
+        double_service: true
+      when: wf_service is defined and core_service.rc == 0
+    
+    - name: Stop console WF
+      include_role:
+        name: wildfly
+        tasks_from: control-stop-console-wf

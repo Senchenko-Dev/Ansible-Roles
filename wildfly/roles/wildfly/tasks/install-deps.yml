@@ -1,0 +1,20 @@
+---
+# Файл запускается из плэйбука install.yl
+- debug:
+    msg: "---------------- INSTALL-DEPS ----------------"
+
+- block:
+  - name: Disable SELinux
+    selinux:
+      state: disabled
+    register: selinux_result
+
+  - reboot:
+    when: selinux_result.reboot_required
+  become: yes
+
+- name: install tools
+  include_tasks: install-deps/install-tools.yml
+
+- name: create user
+  include_tasks: install-deps/create-user.yml

@@ -1,0 +1,21 @@
+---
+- name: "Disable SELinux :("
+  selinux:
+    state: disabled
+
+- name: "reboot machine"
+  reboot:
+    reboot_timeout: 600
+  when: not skip_reboot
+
+- name: "Stop iptables :("
+  service:
+    name: "{{ __firewall_service }}"
+    state: stopped
+  ignore_errors: yes
+
+- name: "Disable iptables :("
+  service:
+    name: "{{ __firewall_service }}"
+    enabled: no
+  ignore_errors: yes

@@ -1,0 +1,6 @@
+- name: control Websphere
+  service:
+    name: websphere
+    state: "{{ websphere_service_state }}"
+    enabled: true
+  become: true

@@ -1,0 +1,24 @@
+---
+- block:
+
+    - name: Start pprb application by service
+      shell: "sudo systemctl restart {{ wf_service }}"
+
+  rescue:
+
+    - name: Get WF service log
+      shell: "cat {{ wf_install_dir }}/standalone/log/wf_service_control.log"
+      register: wf_service_log
+      ignore_errors: true
+      no_log: true
+
+    - name: Show WF service log
+      debug:
+        var: wf_service_log.stdout_lines
+      when: wf_service_log.rc == 0
+      
+    - name: Fail...
+      fail:
+        msg: "Application service {{ wf_service }} is not started"
+  
+  when: double_service == true

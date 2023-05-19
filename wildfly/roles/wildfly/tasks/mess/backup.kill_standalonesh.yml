@@ -1,0 +1,57 @@
+- name: Reading whoami
+  shell: whoami
+  register: wai
+
+- set_fact:
+    ncWf: 1
+#- name: WF2 determination
+#  shell: ls /usr |grep WF2 |sed "s/WF//" $1
+#  register: wfcnt
+#- set_fact:
+#    ncWf: "{{ wfcnt.stdout|int | default(1) }}"
+#  ignore_errors: Yes
+#  when: wfcnt.stdout == '2'
+#- debug: msg="WF count - {{ ncWf }}"
+#####################################
+- name: "Try to stop WF service"
+  command: /bin/systemctl stop wildfly
+  become: yes
+  ignore_errors: True
+  when: "wai.stdout != wf_user"
+
+#- name: "Try to stop WF2 service"
+#  command: /bin/systemctl stop wildfly2
+#  become: yes
+#  ignore_errors: True
+#  when: ncWf == '2' and wai.stdout == 'pprb_dev'
+
+- name: "Kill standalone.sh and orphan java process"
+  shell: for KPID in `ps -ef |grep {{ wildflyConf_path }} |grep -v grep |awk '{print $2;}'`;do kill -9 $KPID; done
+  become: yes
+  when: "wai.stdout != wf_user"
+#  when: wai.stdout == 'pprb_dev'
+
+#- name: "Kill standalone.sh and orphan java process 4 WF2"
+#  shell: for KPID in `ps -ef |grep {{ wildfly2Conf_path }} |grep -v grep |awk '{print $2;}'`;do kill -9 $KPID; done
+#  become: yes
+#  when: ncWf == '2' and wai.stdout == 'pprb_dev'
+#####################################
+- name: "Try to stop WF service"
+  command: /bin/systemctl stop wildfly
+  ignore_errors: True
+  when: "wai.stdout == wf_user"
+#  when: wai.stdout != 'pprb_dev'
+
+#- name: "Try to stop WF2 service"
+#  command: /bin/systemctl stop wildfly2
+#  ignore_errors: True
+#  when: ncWf == '2' and wai.stdout != 'pprb_dev'
+
+- name: "Kill standalone.sh and orphan java process"
+  shell: for KPID in `ps -ef |grep {{ wildflyConf_path }} |grep -v grep |awk '{print $2;}'`;do kill -9 $KPID; done
+  when: "wai.stdout == wf_user"
+#  when: wai.stdout != 'pprb_dev'
+
+#- name: "Kill standalone.sh and orphan java process 4 WF2"
+#  shell: for KPID in `ps -ef |grep {{ wildfly2Conf_path }} |grep -v grep |awk '{print $2;}'`;do kill -9 $KPID; done
+#  when: ncWf == '2' and wai.stdout != 'pprb_dev'

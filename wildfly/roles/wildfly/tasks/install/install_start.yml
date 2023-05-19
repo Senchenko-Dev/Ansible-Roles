@@ -1,0 +1,23 @@
+---
+#  todo тут установка в любом случае! install_force
+- name: Info (df)
+  shell: df -h
+
+- name: Set vars
+  include_tasks: install/set-vars.yml
+
+- name: Install WF
+  include_tasks: install/install-wf.yml
+
+- name: Configure WF
+  include_tasks: install/configure.yml
+
+- name: Install WF as service
+  include_tasks: install/install-wf-as-service.yml
+
+- name: Kill any process
+  include_tasks: install/kill-standalonesh.yml
+
+- name: Tuning WF # настройка прав на сервис # todo есть HARDCODE!, требует рефакторинга
+  include_tasks: install/prepare-wf.yml
+

@@ -1,0 +1,15 @@
+---
+  # Add sysctl values from prereq_nginx_iag_sysctl_config defined in vars.yml
+- name: change sysctl values
+  sysctl:
+    name: '{{ item.key }}'
+    value: '{{ item.value }}'
+    sysctl_set: true
+    state: present
+    reload: true
+  with_dict: '{{ prereq_nginx_iag_sysctl_config }}'
+  become: yes
+  become_user: root
+  become_method: sudo
+  loop_control:
+    label: "{{ item.key }}"

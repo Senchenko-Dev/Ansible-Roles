@@ -1,0 +1,19 @@
+---
+#- name: install java openjdk
+#  shell: sudo yum install java-1.8.0-openjdk-devel -y
+
+- name: Set vars by {{ ansible_distribution }}
+  include_tasks: "install-{{ ansible_distribution }}.yml"
+
+- name: Install package
+  package:
+    name: "{{ package_name }}"
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Which Java?
+  shell: which java
+
+- name: Java version
+  shell: java -version

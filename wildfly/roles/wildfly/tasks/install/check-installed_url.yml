@@ -1,0 +1,51 @@
+- name: pre-set wf_facts
+  set_fact:
+    wf_exists: False
+    wf_other_version: True
+
+
+- block:
+  - service_facts:
+    no_log: true
+
+  - set_fact:
+      #  1. наличие сервиса wf_service_exists {{ wf_service }}
+      wf_service_exists: "{{ 'True' if (ansible_facts.services[wf_service] is defined)  else 'False' }}"
+      #  2. состояние сервиса
+      wf_service_running: "{{ 'True' if ((ansible_facts.services[wf_service] is defined) and (ansible_facts.services[wf_service].state == 'running'))  else 'False' }}"
+
+  #    3. наличие файлов
+  - name: Check wf install dir exists
+    stat:
+      path: "{{ wf_install_dir }}/bin"
+    register: wf_bin_exists
+
+  - name: Check wf url file exists
+    stat:
+      path: "{{ wf_install_dir }}/wildfly_url"
+    register: wf_url_exists
+
+    #    4. версия url
+    #    - из файла
+  - name: url from shell
+    shell: cat "{{ wf_install_dir }}/wildfly_url"
+    register: wf_url_shell_result
+    when:
+      - wf_bin_exists.stat.isdir is defined
+      - wf_url_exists.stat.isreg is defined
+      - wf_url_exists.stat.isreg
+
+  - set_fact:
+      wf_old_url: "{{ wf_url_shell_result.stdout | default('')}}"
+
+# todo get WF version for install!!! --> wildfly_version откуда брать, если только урл?
+
+# выводы
+  - set_fact:
+      wf_exists: "{{ wf_service_exists|bool or wf_bin_exists.stat.isdir|default(false) }}"
+  - set_fact:
+      wf_other_version: "{{ (wildfly_url != wf_old_url)|bool }}"
+
+
+  become: yes
+  become_user: "{{ wf_os_user }}"

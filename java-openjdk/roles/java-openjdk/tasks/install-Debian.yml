@@ -1,0 +1,4 @@
+---
+- name: Set package_name for apt-get
+  set_fact:
+    package_name: "{{ java_package_name | default('openjdk-8-jdk') }}"

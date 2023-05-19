@@ -1,0 +1,20 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  tasks:
+
+    - name: Check core service
+      shell: systemctl show "{{ wf_service }}" | grep BindsTo
+      register: core_service
+      ignore_errors: true
+      when: wf_service is defined and (( externalString is defined and externalString != "" ) or ( hosts_group_WF is defined and hosts_group_WF != "" ))
+    
+    - name: Set variable
+      set_fact:
+        double_service: true
+      when: wf_service is defined and core_service is defined and core_service.rc is defined and core_service.rc == 0 and (( externalString is defined and externalString != "" ) or ( hosts_group_WF is defined) and hosts_group_WF != "" ))
+          
+    - name: Start app on WF
+      include_role:
+        name: wildfly
+        tasks_from: control-start-app-wf
+      when: ( externalString is defined and externalString != "" ) or ( hosts_group_WF is defined and hosts_group_WF != "" )

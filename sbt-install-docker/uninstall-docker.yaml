@@ -1,0 +1,7 @@
+- hosts: "{{ hosts_group_WF }}"
+  max_fail_percentage: 0
+  tasks:
+  - name: uninstall
+    include_role:
+      name: docker-install
+      tasks_from: uninstall

@@ -1,0 +1,46 @@
+---
+- debug:
+    msg: "---------------- CONFIGURE ----------------"
+
+- name: Create property file
+  include_role:
+    name: wildfly
+    tasks_from: configure/configure-wf-create-java-opts-file
+
+- name: Restart wildfly console
+  include_role:
+    name: wildfly
+    tasks_from: control/control-restart-wf-false-app
+
+
+- name: Get system properties list
+  include_vars:
+    file: "wf_sys_props.conf"
+    name: wf_system_properties
+  register: wf_sys_props_exists
+  ignore_errors: yes
+
+- name: Check port availability
+  wait_for:
+    host: localhost
+    port: "{{ 9990 + port_offset }}"
+    timeout: 60
+    sleep: 3
+
+- name: Configure WildFly system properties simple
+  include_role:
+    name: wildfly
+    tasks_from: configure/configure-wf-sys-props-simple
+  with_dict: "{{ wf_system_properties }}"
+  vars:
+    property_name: "{{ item.key }}"
+    property_value: "{{ item.value }}"
+  ignore_errors: yes
+  when: not wf_sys_props_exists.failed
+
+- name: Overwrite custom files
+  include_role:
+    name: wildfly
+    tasks_from: configure/configure-wf-overwrite-files
+  when:
+    - overwrite_files_wildfly|length > 0

@@ -1,0 +1,9 @@
+---
+
+- name: restart_websphere
+  systemd:
+    name: websphere
+    state: restarted
+    daemon_reload: yes
+    enabled: yes
+  become: true

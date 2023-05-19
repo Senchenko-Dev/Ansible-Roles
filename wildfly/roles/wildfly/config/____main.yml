@@ -1,0 +1,60 @@
+### Wildfly install settings
+#wildflyConf_path: /usr/WF/WF_PPRB
+#wildfly_user: wfadmin
+#wildfly_group: wfgroup
+wildflyConf_path: "{{ wf_install_dir }}"
+wildfly_user: "{{ wf_os_user }}"
+wildfly_group: "{{ wf_os_group }}"
+
+### Wildfly install settings
+### wildfly2Conf_path: /usr/WF2/WF_PPRB
+### wildfly2_user: wfadmin2
+### wildfly2_group: wfgroup
+
+#wf_user: "{{ wildfly_user }}"                # логин пользователя Linux, под которым будет запускаться Wildfly
+wf_group: "{{ wildfly_group }}"               # имя группы для установки
+wf_home_dir: "{{ wildflyConf_path }}"         # путь к установленному Wildfly
+wf_home: "{{ wildflyConf_path }}"             # путь к установленному Wildfly для сервиса
+service_dir: "{{ wf_home_dir }}/service"      # Каталог в котором будут располагаться скрипты запуска/остановки вайлдфлай
+systemd_dir: "/etc/systemd/system"
+service_name: wildfly                         # имя юнита systemd для старта/стопа Wildfly
+wf_service: "{{ service_name }}-core.service" # Имя юнита для запуска WildFly
+wfapp_service: "{{ service_name }}.service"   # Имя юнита для запуска приложений
+use_batch: 1                                  # Пакетный режим запуска
+port_offset: 0                                # Смещение портов
+
+
+
+
+
+
+
+
+
+### java_home: "/usr/java/latest"                 # JAVA_HOME
+###java_home: "/usr/WF/java"                     # JAVA_HOME
+
+
+### WTF ???
+
+#dst_ins: /opt
+#wildfly_version: wildfly-10.1.0.Final
+#wildfly_path: '{{ dst_ins }}/wildfly'
+#wildflyConf_path: '{{ dst_ins }}/wildfly-conf'
+#heapdumppath: '{{ dst_ins }}/backups/heapdumps-conf'
+#wildfly_user: wildfly
+#deployConfComm: '/opt/wildfly-conf/bin/jboss-cli.sh --connect --user=admin --password=admin1234 --command="deploy '
+#deployAppComm: '/opt/wildfly/bin/jboss-cli.sh --connect --user=admin --password=admin1234 --command="deploy '
+#wildfly_user_password: wildfly
+#wildfly_group: wildfly
+#wildfly_admin_user: admin
+#wildfly_admin_pass: admin1234
+#crypto_password: admin1234
+#wfAppDir: '/{{ pprbRelease }}/distr'
+#zmqMainDest:  /opt/wildfly/modules/system/layers/base/org/zeromq/jzmq/main
+#zmqNativeLibDestConf: /opt/wildfly-conf/native_lib
+#zmqMainDestConf:  /opt/wildfly-conf/modules/system/layers/base/org/zeromq/jzmq/main
+#zmqNativeLibDest: /opt/wildfly/native_lib
+#custodian_log_path: /opt/pprb/logs/custodian
+#custodian: custodian-distr-impl-ear-D-03.000.00.ear
+

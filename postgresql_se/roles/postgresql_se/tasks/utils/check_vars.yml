@@ -1,0 +1,5 @@
+- name: Проверка обязательных переменных
+  fail:
+    msg: "Не задана переменная {{ item }}"
+  when: item is not defined or item == None or item == ''
+  loop: "{{ vars_to_check }}"

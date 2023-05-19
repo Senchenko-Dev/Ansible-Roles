@@ -1,0 +1,100 @@
+- name: Reading whoami
+  shell: whoami
+  register: wai
+
+- name: WF2 determination
+  shell: ls /usr |grep WF2 |sed "s/WF//" $1
+  register: wfcnt
+
+####################################
+
+- set_fact:
+    ncWf: 1
+  ignore_errors: Yes
+
+- set_fact:
+    ncWf: "{{ wfcnt.stdout|int | default(1) }}"
+  ignore_errors: Yes
+  when: wfcnt.stdout == '2'
+
+- debug: msg="WF_Count - {{ ncWf }}"
+
+#Рекомендуемые параметры от сопровождения WF:
+#  MaxMetaspaceSize и MetaspaceSize = 1/8 RAM
+#  Xmx и Xms = 2/3 RAM, но не более 30GB
+#Также рекомендуемо прописывать как: JAVA_OPTS="-XmsXXX -XmxXXX -XX:MetaspaceSize=YYY -XX:MaxMetaspaceSize=YYY"
+#  , где XXX и YYY соответствующие размеры RAM (ЗНО0175565307).
+
+- set_fact:
+    xMem: "{{ (((ansible_memtotal_mb * 2) / 3 ) / ncWf) | int }}"
+#  ignore_errors: Yes
+
+- set_fact:
+    xMem: "30720"
+  ignore_errors: Yes
+  when: xMem|int > 30720
+
+- set_fact:
+    metaspace: "{{ ((ansible_memtotal_mb / 8 ) / ncWf) | int }}"
+#  ignore_errors: Yes
+
+- debug: msg="WF_Count - {{ ncWf }}  -- выделенная память - {{ xMem }}  -- metaspace - {{ metaspace }}"
+
+
+- name: deleting /tmp/hosts.ini
+  file:
+    path: /tmp/hosts.ini
+    state: absent
+
+
+#  Убрано как относящееся к ППРБ ------------------------------------------------------------------------------+
+#
+#- set_fact:
+#    zone_prefix: "{{ zone }}"
+#  ignore_errors: Yes
+#  when: zone is defined
+#
+#- set_fact:
+#    zone_prefix: 'zone0'
+#  when: zone_prefix == "" or zone_prefix == "DEFAULT" or zone_prefix == "default"  or zone_prefix == "Default"
+#
+#- set_fact:
+#    group_prefix: "{{ zone_prefix }}"
+#
+#- debug: msg="{{ zone_prefix }}"
+#
+###############################################
+#- set_fact:
+#    aj_prefix: "{{ aj_zone }}"
+#  ignore_errors: Yes
+#  when: aj_zone is defined
+#
+#- set_fact:
+#    zone_prefix: "{{ aj_zone }}"
+#  when: aj_prefix != ""
+
+################################################  -----------------------------------------------------------+
+- block:
+  - name: insert or update MetaspaceSize
+    lineinfile:
+      path: "{{ wf_install_dir }}/bin/standalone.conf"
+      regexp: "^(.*)(JAVA_OPTS -XX:MetaspaceSize)(.*)$"
+      line: "JAVA_OPTS=\"$JAVA_OPTS -XX:MetaspaceSize={{ metaspace }}m\""
+  - name: insert or update MaxMetaspaceSize
+    lineinfile:
+      path: "{{ wf_install_dir }}/bin/standalone.conf"
+      regexp: "^(.*)(JAVA_OPTS -XX:MaxMetaspaceSize)(.*)$"
+      line: "JAVA_OPTS=\"$JAVA_OPTS -XX:MaxMetaspaceSize={{ metaspace }}m\""
+  - name: insert or update xmx
+    lineinfile:
+      path: "{{ wf_install_dir }}/bin/standalone.conf"
+      regexp: "^(.*)(JAVA_OPTS -Xmx)(.*)$"
+      line: "JAVA_OPTS=\"$JAVA_OPTS -Xmx{{ xMem }}m\""
+  - name: insert or update xms
+    lineinfile:
+      path: "{{ wf_install_dir }}/bin/standalone.conf"
+      regexp: "^(.*)(JAVA_OPTS -Xms)(.*)$"
+      line: "JAVA_OPTS=\"$JAVA_OPTS -Xms{{ xMem }}m\""
+  become_user: "{{ wf_os_user }}"
+  become: yes
+

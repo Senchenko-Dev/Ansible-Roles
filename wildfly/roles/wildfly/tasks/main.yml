@@ -1,0 +1,59 @@
+---
+# Файл в соответствии с примером СТД-11 https://confluence.sberbank.ru/pages/viewpage.action?pageId=4833510147
+
+- debug:
+    msg: "================ WILDFLY ================"
+#    msg: "{{ role_name }}"
+  tags:
+    - always
+
+- import_tasks: debug.yml
+  tags:
+    - never
+    - debug
+
+- name: import precheck
+  import_role:
+    name: wildfly
+    tasks_from: precheck.yml
+    defaults_from: precheck.yml
+#  import_tasks: precheck.yml
+  tags:
+    - never
+    - precheck
+
+- name: import install-deps
+  import_tasks: install-deps.yml
+  tags:
+    - install
+
+- name: import install
+  import_tasks: install.yml
+  tags:
+    - install
+
+#- name: import update # - после уточнения в стандарте
+#  import_tasks: update.yml
+#  tags:
+#    - never
+#    - update
+
+- name: import configure
+  import_tasks: configure.yml
+  tags:
+    - install
+    - configure
+
+#
+#- name: import control
+#  import_tasks: control.yml # todo запуск сервисов перенести сюда
+#  tags:
+#    - install
+#
+#- name: import uninstall
+#  import_tasks: uninstall.yml
+#  tags:
+#    - never
+#    - uninstall
+#
+

@@ -1,0 +1,22 @@
+---
+#- name: Calculate WF connection string
+#  set_fact:
+#    wildfly_connection_string: "{{ wildfly_controller_protocol | default('http-remoting') }}://{{ wildfly_controller_host | default(ansible_fqdn) }}:{{ wildfly_controller_port | default('9990') }}"
+- block:
+
+  - name: Add system property
+    shell: "./jboss-cli.sh --connect --command=\"/system-property={{ property_name }}:add(value={{ property_value }})\""
+    args:
+      chdir: "{{ wf_install_dir }}/bin"
+    register: property_adding_result
+    failed_when: property_adding_result.rc != 0 and 'Duplicate resource' not in property_adding_result.stdout
+
+  - name: Update system property
+    shell: "./jboss-cli.sh --connect --command=\"/system-property={{ property_name }}:write-attribute(name=value, value={{ property_value }})\""
+    args:
+      chdir: "{{ wf_install_dir }}/bin"
+    register: update_result
+    when: property_adding_result.rc != 0 and 'Duplicate resource' in property_adding_result.stdout
+
+  become_user: "{{ wf_os_user }}"
+  become: "{{ 'no' if ansible_user == wf_os_user else 'yes' }}"

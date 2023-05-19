@@ -1,0 +1,12 @@
+--- 
+- name: add repo k8s
+  shell: |
+   cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+   [kubernetes]
+   name=Kubernetes
+   baseurl={{ baseurl_k8s_repo }}
+   enabled=1
+   gpgcheck=0
+   repo_gpgcheck=0
+   gpgkey={{ url_google_pkg_gpg }}
+   EOF

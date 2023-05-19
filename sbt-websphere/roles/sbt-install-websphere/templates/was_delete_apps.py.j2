@@ -1,0 +1,16 @@
+#Uninstall default applecations
+import os
+appl=AdminApp.list().split(os.linesep)
+for capp in appl:
+ if capp=="DefaultApplication":
+  print "Uninstall %s" % (capp)
+  AdminApp.uninstall(capp)
+ if capp=="ivtApp":
+  print "Uninstall %s" % (capp)
+  AdminApp.uninstall(capp)
+ if capp=="query":
+  print "Uninstall %s" % (capp)
+  AdminApp.uninstall(capp)
+#Save
+AdminConfig.save()
+# End of File

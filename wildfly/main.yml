@@ -1,0 +1,7 @@
+---
+### Файл в соответствии с примером СТД-11 https://confluence.sberbank.ru/pages/viewpage.action?pageId=4833510147
+- hosts: all
+  serial: "{{ rolling_update_serial | default('50%') }}"
+
+  roles:
+    - wildfly

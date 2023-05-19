@@ -1,0 +1,14 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  serial: "{{ serial | default('100%') }}"
+  vars:
+    gather_facts: true
+    ansible_user: "{{ become_user }}"
+    ansible_password: "{{ ansible_become_pass }}"
+
+  tasks:
+
+    - name: Uninstall
+      include_role:
+        name: wildfly
+        tasks_from: uninstall

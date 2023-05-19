@@ -1,0 +1,434 @@
+#!/bin/bash
+
+# раскоментируйте строку для использования без сервиса
+#. wildfly.env
+
+#version {{ wf_service_version }}
+#инициализация стандартных переменных
+#echo $PORT_OFFSET
+#echo $WILDFLY_HOME
+#echo $SERVICE_PRIORITY_FILE
+WF_CONTROLLER="--controller=localhost:$((9990+${PORT_OFFSET:-0}))"
+
+# TODO: надо удалять логи старше 30 дней
+logdir="{{ wf_log_dir }}"
+logdate=`date +"%Y%m%d_%H%M%S"`
+logname="{{ wf_log_name }}.${logdate}"
+# удаляем логи сервиса старше 30 дней
+find ${logdir}/wf_service_control.log.* -mtime +30 -delete
+rm ${logdir}/{{ wf_log_name }}
+touch ${logdir}/{{ wf_log_name }}.${logdate}
+ln -sf {{ wf_log_name }}.${logdate} ${logdir}/{{ wf_log_name }}
+
+servicedir="$WILDFLY_HOME/service"
+logsize=102400000
+logcount=5
+
+#переменная используется скриптом standalone.sh для запуска джава процесса в фоновом режиме
+LAUNCH_JBOSS_IN_BACKGROUND=1
+export LAUNCH_JBOSS_IN_BACKGROUND
+
+#переменная используется скриптом standalone.sh для записи и контроля запущенного java процесса
+JBOSS_PIDFILE="${logdir}/javawf.pid"
+export JBOSS_PIDFILE
+
+JBOSS_HOME=$WILDFLY_HOME
+jcli="$JBOSS_HOME/bin/jboss-cli.sh $WF_CONTROLLER"
+
+timeout={{ wf_check_timeout }}
+batch_timeout={{ wf_batch_timeout }}
+
+{% raw %}
+
+#функции
+logging ()
+{
+  [[ ! -f $logdir/$logname ]] && touch $logdir/$logname
+  lsize=`stat -c %s "$logdir/$logname"`
+  line=`date +"%F %T,%3N"`" $1"
+  echo $line | tee -a $logdir/$logname
+  let lsize=$lsize+${#line}
+  if (( $lsize > $logsize ))
+  then
+    for (( k=$logcount; k>0; k--))
+      do
+        let p=$k-1
+        if [ -f $logdir/$logname.$p ]
+        then
+          mv -f $logdir/$logname.$p $logdir/$logname.$k
+        fi
+    done
+    mv -f $logdir/$logname $logdir/$logname.1
+    let lsize=0
+  fi
+}
+
+sortList_APP ()
+{
+    if [[ -f $SERVICE_PRIORITY_FILE ]]; then
+        logging "Обработан файл $SERVICE_PRIORITY_FILE"
+        source $SERVICE_PRIORITY_FILE
+    elif [[ -d $SERVICE_PRIORITY_DIR && `ls -1 $SERVICE_PRIORITY_DIR/* | wc -l` -gt 0 ]]; then
+      logging "Обработываются файлы в $SERVICE_PRIORITY_DIR"
+      echo ${modules[@]}
+      for f in $(ls -1 $SERVICE_PRIORITY_DIR/*); do
+        logging "Обработан файл $f"
+        #skip anavailable modules
+        # real_mods=`echo ${modules[@]} | tr ' ' '\n' | grep -o -f $f`
+        # if [[ ! -z $real_mods ]]; then
+            steps=("${steps[@]}" "$(cat $f)")
+          #  logging "Добавлен шаг для модулей: $real_mods"
+        # fi
+      done
+      # declare -p steps
+
+    # else
+      #  logging "Отсутствует файл $SERVICE_PRIORITY_FILE. Загружаем очередность по умолчанию"
+      #  steps=( ${steps[@]} custodian-.* )
+      #  steps=( ${steps[@]} transport-md-ear.* )
+      #  steps=( ${steps[@]} logger-platform.* )
+      #  steps=( ${steps[@]} seap-lib-deps.*  com-sbt-ott-api-client-ear.* )
+      #  steps=( ${steps[@]} cci-mmt-impl-ear.*  cci-mmt-impl-ear.* cc-routing-war.* dpl-lite-ear.* )
+      #  steps=( ${steps[@]} cs-oracle-ear.*  cs-mmt-server.* cs-mmt-client-ear.* cs-snowflake-ear.* )
+    fi
+
+    declare -p steps
+    for (( i=0; i<${#steps[@]}; i++ )) {
+#        echo i=$i
+#        echo ${steps[$i]}
+
+        unset real_mods
+        for f in ${steps[$i]}; do
+            logging "Обработан приоритет $f"
+            real_mods=( ${real_mods[*]} `echo ${modules[@]} | tr ' ' '\n' | grep -o -E $f` )
+            #real_mods+=" "`echo ${modules[@]} | tr ' ' '\n' | grep -o $f`
+#            declare -p real_mods
+        done
+#       declare -p real_mods
+        if [[ ! -z $real_mods ]]; then
+            step=("${step[@]}" "${real_mods[*]}")
+            logging ">> Добавлен шаг для модулей: ${real_mods[*]}"
+        fi
+#    echo step
+#    declare -p step
+#exit 0
+    }
+
+
+    logging "Получаем список модулей, для который не определен приоритет. Они будут запущены последними"
+    modules_diff=`echo ${modules[@]} ${step[@]} | tr ' ' '\n' | sort | uniq -u`
+    if [[ ! -z $modules_diff ]]; then
+        step=("${step[@]}" "$modules_diff")
+        logging "Добавлен шаг для модулей: $modules_diff"
+    fi
+    echo steps count: ${#step[@]}
+
+}
+
+startApp_WF ()
+{
+
+    logging "Начинаем запуск приложений"
+    [[ -f $servicedir/deploy.cli ]] && rm $servicedir/deploy.cli
+    #стартуем приложения по списку 
+
+    logging "получаем полный список приложений для запуска."
+    declare -a modules
+#    if [ -f ${servicedir}/app_ignor_list ]; then
+#        modules=( `$jcli $args --commands="embed-server,ls deployment -l" | grep -v -f ${servicedir}/app_ignor_list` )
+#    else
+#        modules=( `$jcli $args --commands="embed-server,ls deployment"` )
+        modules=( `$jcli $args --connect --command="ls deployment"` )
+#    fi
+
+    logging "Формируем отсортированный список запуска модулей"
+    declare -a step
+    sortList_APP;
+
+    declare batch_begin batch_end
+    if [ "$USE_BATCH" == "true" -o "$USE_BATCH" == "1" ]; then
+      logging "Используем режим batch"
+      batch_begin='batch'
+      batch_end="run-batch --headers={rollback-on-runtime-failure=false; blocking-timeout=${batch_timeout}} --verbose"
+    fi
+
+    if [ "$BREAK_ON_FAIL" == "true" -o "$BREAK_ON_FAIL" == "1" ]; then
+	step_quit="        deployment-info\n"
+	step_quit+="        quit\n"
+    fi
+
+    jbatch=''
+    for (( i=0; i<${#step[@]}; i++ )) {
+        step_deploy=''
+        step_check=''
+        for mdl in ${step[$i]}; {
+            step_deploy+="    echo deploy $mdl\n"
+            step_deploy+="    /deployment=$mdl:deploy\n"
+            step_check+="    if (result == FAILED) of /deployment=$mdl:read-attribute(name=status)\n"
+            step_check+="        echo  deployment $mdl FAILED\n"
+#            step_check+=
+            step_check+=$step_quit
+            step_check+="    else\n"
+            step_check+="        echo  deployment $mdl SUCCESS\n"
+            step_check+="    end-if\n"
+
+        }
+        jbatch+=$(cat <<-EOF
+\necho \--------------------------------------------= STEP $i =--------------------------------------------
+    $batch_begin
+$step_deploy    $batch_end
+    $step_check
+    echo step$i finished\n
+EOF
+)
+        jbatch+="echo ============ STATUS ==============\n"
+        jbatch+="        deployment-info\n"
+    } # //end for
+    printf "%b" "$jbatch" > $servicedir/deploy.cli
+
+    out=$($jcli --connect --error-on-interact --file="$servicedir/deploy.cli"\
+      | tee -a $logdir/$logname)# \
+
+    printf "%b" "$out" | grep "FAILED"
+
+    result=$?
+    if [ $result -eq 0 ]; then
+      logging "ERROR: Запуск приложений завершен с ошибками. result=$result"
+      if [ "$BREAK_ON_FAIL" == "true" -o "$BREAK_ON_FAIL" == "1" ]; then
+        exit 104
+      else
+        exit 0
+      fi
+    else
+      logging "SUCCESS: Запуск приложений завершен успешно. result=$result"
+      exit 0 
+    fi
+}
+
+stopApp_WF ()
+{
+
+    logging "Начинаем остановку приложений"
+    [[ -f $servicedir/undeploy.cli ]] && rm $servicedir/undeploy.cli
+
+    logging "получаем полный список приложений для остановки."
+    declare -a modules
+    modules=( `$jcli $args --commands="connect,deploy -l"  |  awk '$3=="true" { print $1 }'`)
+
+
+#    echo ${modules[@]} | tee modules_test
+    logging "Формируем отсортированный список запуска модулей"
+    declare -a step
+    sortList_APP;
+
+    declare batch_begin batch_end
+    if [ "$USE_BATCH" == "true" -o "$USE_BATCH" == "1" ]; then
+      logging "Используем режим batch"
+      batch_begin='batch'
+      batch_end="run-batch --headers={rollback-on-runtime-failure=false; blocking-timeout=${batch_timeout}} --verbose"
+    fi
+
+    jbatch=''
+    for (( i=${#step[@]}-1; i>=0; i-- )) {
+        step_deploy=''
+        step_modules=(${step[$i]})
+        for mdl in ${step[$i]}; {
+              step_deploy+="    echo undeploy $mdl\n"
+              step_deploy+="    /deployment=$mdl:undeploy\n"
+        }
+    jbatch+=$(cat <<-EOF
+\necho \--------------------------------------------= STEP $i =--------------------------------------------
+  try
+    echo step$i try to undeploy
+    $batch_begin
+$step_deploy    $batch_end
+  catch
+    echo step$i failed to undeploy modules
+    deployment-info
+    quit
+  end-try
+    echo step$i finished\n
+EOF
+)
+
+    } # //end for
+    printf "%b" "$jbatch" > $servicedir/undeploy.cli 
+    $jcli --connect --error-on-interact --file="$servicedir/undeploy.cli" \
+        | tee -a $logdir/$logname \
+        | grep "failed to undeploy"
+    result=$?
+    logging "Остановка приложений закончена. result=$result"
+    if [ $result -eq 0 ]; then
+      logging "ERROR: Останов приложений завершен с ошибками. result=$result"
+      # отключено по требованию Косова М.В.
+      # exit 105
+    else
+      logging "SUCCESS: Останов приложений завершен успешно. result=$result"
+      exit 0
+    fi
+}
+
+start_WF ()
+{
+  logging "Проверяем наличие существующего java процесса из WILDFLY_HOME=$WILDFLY_HOME/"
+
+  wf_pids=`ps -ef | grep java | grep Standalone | grep "$WILDFLY_HOME/" | awk '{print $2}'`
+  if [ ! -z $wf_pids ]; then
+    logging "!!!ERROR!!! Обнаружено более одного процесса java $WILDFLY_HOME, запуск сервиса производиться не будет"
+    logging "Пид процесса $wf_pids"
+    exit 100
+  fi
+
+  logging "Проверяем наличие $WILDFLY_HOME/bin/SRCJNKS"
+  [[ ! -f $WILDFLY_HOME/bin/SRCJNKS ]] && logging "!!!WARN!!! Отсутствует файл $WILDFLY_HOME/bin/SRCJNKS. Продолжаем запуск."
+
+  logging "Удаляем startup.marker"
+  [[ -f $WILDFLY_HOME/standalone/tmp/startup-marker ]] && rm $WILDFLY_HOME/standalone/tmp/startup-marker
+
+  logging "Переводим все приложения в статус disabled"
+  $jcli --commands="embed-server,undeploy \* --keep-content,deploy -l"
+
+  logging "Запускаем WF"
+#  nohup $WILDFLY_HOME/bin/standalone.sh -b=0.0.0.0 -bmanagement=0.0.0.0  -Djboss.socket.binding.port-offset=$PORT_OFFSET 2>&1 >$logdir/wf.log &
+#  nohup $WILDFLY_HOME/bin/standalone.sh -b=0.0.0.0 -bmanagement=0.0.0.0 2>&1 >$logdir/wf.log &
+  $WILDFLY_HOME/bin/standalone.sh -b=0.0.0.0 -bmanagement=0.0.0.0 2>&1 >/dev/null &
+  PID=$!
+  echo $PID > "$logdir/wf.pid"
+  logging "Запущен процесс $PID"
+
+  timewait=$timeout
+  while [[ ! -f $JBOSS_PIDFILE ]]; do
+    sleep 1
+    let timewait=timewait-1
+    if [ $timewait -le 1 ]; then
+      logging "Не появился файл $JBOSS_PIDFILE с pid java процесса wildfly за $timeout сек"
+      exit 103
+      break
+    fi
+  done
+  logging "WF запущен в фоновом режиме за $((timeout-timewait)) сек"
+}
+
+check_WF ()
+{
+  logging "ждем появления маркера startup-marker"
+  timestart=$timeout
+  while [ ! -f "$WILDFLY_HOME/standalone/tmp/startup-marker" ]; do
+    sleep 1
+    let timestart=timestart-1
+    if [ $timestart -le 1 ]; then
+      logging "startup-marker не появился за указанный период $timeout секунд"
+      break
+    fi
+  done
+  timewait=$timeout
+  while [ `cat "$WILDFLY_HOME/standalone/tmp/startup-marker"|grep -c "success\|error"` -lt 1 ]; do
+    sleep 1
+    let timewait=timewait-1
+    if [ $timewait -le 1 ]; then
+      logging "В startup-marker не появился признак успешности за ${timeout} сек"
+      break
+    fi
+  done
+  if [ `cat "$WILDFLY_HOME/standalone/tmp/startup-marker"|grep -c success` -eq 1 ]; then
+    logging "WF запущен"
+#    exit 0
+  else
+    logging "startup-marker в error, запуск WF не успешен"
+    exit 102
+  fi
+#  logging "Спим 10 сек"
+#  sleep 10
+}
+
+stop_WF ()
+{
+
+  if [ ! -f "$JBOSS_PIDFILE" ]; then
+    logging "Файл $JBOSS_PIDFILE не найден. Останов сервиса невозможен"
+    exit 101
+  fi
+
+#  logging "Сохраняем состояние запуска модулей перед остановкой WF"
+#  $jcli --connect --commands="deploy -l" > ${servicedir}/app_last_state
+#  logging "Сохраняем список остановленных модулей в app_ignor_list"
+#  tail -n +2 ${servicedir}/app_last_state | awk '$3=="false" { print $1 }' > ${servicedir}/app_ignor_list
+
+
+
+  logging "Останавливаем WF"
+  logging "останавливаем WF коммандой shutdown timeout=$timeout"
+  $jcli --connect --command='shutdown' &
+  jcli_pid=$!
+
+  timewait=$timeout
+#  while [ `ps -h --pid $(cat $JBOSS_PIDFILE) | wc -l` -ne 0 ]; do
+  while [ -f $JBOSS_PIDFILE ]; do
+#    if [ `tail -n 100 "$logdir/server.log" | grep -c "WFLYSRV0050"` -lt 1 ]; then
+    if [ `ps -h --pid $(cat $JBOSS_PIDFILE) | wc -l` -ne 0 ]; then
+      let timewait=timewait-1
+      if [ $timewait -le 1 ]; then
+        logging "Сервер не остановился за $timeout секунд. Прибиваем через kill -9"
+        kill -9 `head -1 $logdir/wf.pid` `head -1 $JBOSS_PIDFILE` $jcli_pid || true
+        rm $logdir/wf.pid $JBOSS_PIDFILE 2>&1 >/dev/null || true
+        break
+      fi
+    else
+      logging "Сервер остановлен за $((timeout - timewait)) секунд"
+      break
+    fi
+    sleep 1
+  done
+
+#  #перевод приложений в статус disabled
+#  $jcli --commands="embed-server,undeploy * --keep-content,deploy -l"
+  logging "Удаляем startup.marker"
+  [[ -f $WILDFLY_HOME/standalone/tmp/startup-marker ]] && rm $WILDFLY_HOME/standalone/tmp/startup-marker
+  logging "WF остановлен"
+}
+
+{% endraw %}
+
+logging "effective user:"
+logging `id`
+
+logging "env:"
+logging `env`
+
+logging "limits:"
+logging "`ulimit -a`"
+
+logging "WildFly service v{{ wf_service_version }}"
+logging "USE_BATCH     = ${USE_BATCH:-0}"
+logging "BREAK_ON_FAIL = ${BREAK_ON_FAIL:-0}"
+logging "JAVA_HOME     = $JAVA_HOME"
+logging "WILDFLY_HOME  = $WILDFLY_HOME"
+logging "PORT          = $PORT"
+logging "PORT_OFFSET   = $PORT_OFFSET"
+logging "WF_CONTROLLER = $WF_CONTROLLER"
+logging "SERVICE_PRIORITY_FILE = $SERVICE_PRIORITY_FILE"
+logging "SERVICE_PRIORITY_DIR  = $SERVICE_PRIORITY_DIR"
+
+
+case "$1" in
+    start )
+        start_WF
+        check_WF
+#        startApp_WF
+        ;;
+    stop )
+#        stopApp_WF
+        stop_WF
+        ;;
+    startApp )
+        startApp_WF
+        ;;
+    stopApp )
+        stopApp_WF
+        ;;
+    check )
+        check_WF;;
+    * )
+        echo "Usage: $0 {start|stop|startApp|stopApp|check}"
+        ;;
+esac

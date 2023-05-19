@@ -1,0 +1,10 @@
+--- 
+- hosts: all
+  become: yes
+  tasks:
+
+  - name: inslude_tasks
+    include_role:
+       name: sbt-install-nginx
+       tasks_from: install
+       

@@ -1,0 +1,24 @@
+
+# TASKS
+### Образец тестового входного таска
+- debug: msg="ALWAYS"
+  tags:
+    - always
+
+- import_tasks: debug.yml
+  tags:
+    - always
+
+- import_tasks: install.yml
+  tags:
+    - install
+
+- import_tasks: configure.yml
+  tags:
+    - install
+    - configure
+
+- import_tasks: uninstall.yml
+  tags:
+    - never
+    - uninstall

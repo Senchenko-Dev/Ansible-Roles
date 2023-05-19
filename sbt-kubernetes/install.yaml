@@ -1,0 +1,10 @@
+--- 
+- hosts: all
+  become: yes
+  tasks:
+
+  - name: include_tasks
+    include_role:
+       name: sbt-install-kubernetes
+       tasks_from: install
+       

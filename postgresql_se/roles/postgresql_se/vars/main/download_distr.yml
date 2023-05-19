@@ -1,0 +1,3 @@
+#distr_path: "/home/postgres"
+distr_filename: "pgse_distrib.tar.gz"
+nexus_repo_url: "{{ nexus_repository_url }}"

@@ -1,0 +1,71 @@
+---
+# Файл в соответствии с примером СТД-11 https://confluence.sberbank.ru/pages/viewpage.action?pageId=4833510147
+
+- debug:
+    msg: "================ NGINX ================"
+  #    msg: "{{ role_name }}"
+  tags:
+    - always
+
+  #- name: import precheck
+  #  import_tasks: precheck.yml
+  #  tags:
+  #    - never
+  #    - precheck
+  # корректность заполнения конфигурационных файлов
+  #наличие доступа к репозиториям
+  #наличие доступа в хранилища сертификатов или секретов
+  #и другие необходимые для выполнения роли пререквизиты
+  #наличие необходимых каталогов с необходимым размером
+
+- name: import install-deps
+  import_tasks: install-deps.yaml
+  tags:
+    - install
+
+- name: import inc-install-RedHat
+  import_tasks: inc-install-RedHat.yaml
+  tags:
+    - install
+
+#- name: import control.yaml
+#  import_tasks: control.yaml
+#  tags:
+#    - control
+
+- name: import logs.yaml
+  import_tasks: logs.yaml
+  tags:
+    - logs
+
+
+#- name: import configure
+#  import_tasks: configure.yaml
+#  tags:
+#    - install
+#    - configure
+
+
+
+#- name: import update # - после уточнения в стандарте
+#  import_tasks: update.yml
+#  tags:
+#    - never
+#    - update
+#
+#
+#- name: import control
+#  import_tasks: control.yaml # todo запуск сервисов перенести сюда
+#  tags:
+#    - install
+#    - control
+#    - configure
+
+
+#- name: import uninstall
+#  import_tasks: uninstall.yml
+#  tags:
+#    - never
+#    - uninstall
+#
+

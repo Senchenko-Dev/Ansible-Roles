@@ -1,0 +1,26 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+
+    - name: lsblk
+      shell: "lsblk -o SIZE,name | sort --human-numeric-sort | egrep {{nginx_mask_label}} | awk '{print $2}' "
+      register: array_label_disk
+
+    - name: split
+      set_fact:
+        array_label_disk: "{{array_label_disk.stdout.split('\n')}}"
+
+    - debug:
+        var: disks
+
+    - name: inslude_tasks
+      vars:
+        mount_point: "{{item.mount_point}}"
+        device: "/dev/{{array_label_disk[my_index]}}"
+      with_items: "{{disks | sort(attribute='size')}}"
+      loop_control:
+        index_var: my_index
+      include_role:
+        name: sbt-install-nginx
+        tasks_from: install-disks

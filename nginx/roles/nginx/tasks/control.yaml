@@ -1,0 +1,7 @@
+---
+- name: service_state
+  service:
+    name: nginx.service
+    state: "{{ service_state }}"
+  ignore_errors: yes
+

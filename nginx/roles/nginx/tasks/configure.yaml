@@ -1,0 +1,52 @@
+
+- name: Generate configuration
+  block:
+    - name: Generate server configuration
+      template:
+        src: nginx.conf.j2
+        dest: "{{ nginx_conf_dir }}/nginx.conf"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_group }}"
+        mode: 0644
+        backup: yes
+        force: yes
+      become: yes
+      register: nginx_conf_changed
+
+    ###########----#проверка на существующий файл----##############
+    - name: Check if "default.conf" exists
+      stat:
+        path: "{{ nginx_conf_dir }}/conf.d/default.conf"
+      register: file_default
+
+    - name: Generate virtualhost configuration
+      template:
+        src: default.conf.j2
+        dest: "{{ nginx_conf_dir }}/conf.d/default.conf"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_group }}"
+        mode: 0644
+        backup: yes
+        force: yes
+      become: yes
+      when: file_default.stat.exists == false
+      register: default_conf_changed
+
+##############################################################
+
+
+
+
+- name: Overwrite custom files
+  include_role:
+    name: nginx
+    tasks_from: configure/configure-nginx-overwrite-files
+  when:
+    - overwrite_files_nginx|length > 0
+  register: overwrite_files_changed
+
+
+- name: Триггер перезапуска сервиса
+  set_fact:
+    service_state: "reloaded"
+  when: default_conf_changed.changed or nginx_conf_changed.changed or overwrite_files_changed.changed

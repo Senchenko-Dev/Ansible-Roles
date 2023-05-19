@@ -1,0 +1,27 @@
+---
+  # Install required packages
+- name: install libunwind ldconfig jq cronie packages
+  shell: "sudo yum -y install libunwind ldconfig jq cronie"
+  become: yes
+  #become_user: "{{ prereq_nginx_iag_privileged_user }}"
+  #become_method: sudo
+
+  # Perform check installation status of packages
+- name: check installation status of libunwind glibc jq libraries
+  shell: |
+    rpm -qa | grep -E 'libunwind|glibc|jq|cronie'
+  register: rpm_check
+  ignore_errors: true
+
+  # Show result of package installation status check
+- name: show installation status of libunwind glibc jq libraries
+  debug:
+    msg: |
+      {% if (item.search_string not in rpm_check.stdout) %}ERROR: {{ item.name }} is not installed{% else %}SUCESS: {{ item.name }} installed{% endif %}
+  with_items:
+  - "{{ { 'name': 'libunwind', 'search_string': 'libunwind-' } }}"
+  - "{{ { 'name': 'glibc', 'search_string': 'glibc-' } }}"
+  - "{{ { 'name': 'jq', 'search_string': 'jq-' } }}"
+  - "{{ { 'name': 'cronie', 'search_string': 'cronie' } }}"
+  loop_control:
+    label: "status of package {{ item.name }}"

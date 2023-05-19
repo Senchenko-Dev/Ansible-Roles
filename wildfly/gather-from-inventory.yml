@@ -1,0 +1,48 @@
+---
+- block:
+
+    - set_fact:
+        dbname: "{{ groups['Config.PostgreSQL'] | map('extract',hostvars,'db_name') | list }}"
+
+    - set_fact:
+        dbport: "{{ groups['Config.PostgreSQL'] | map('extract',hostvars,'db_port') | list }}"
+
+    - set_fact:
+        dbhost: "{{ groups['Config.PostgreSQL'] | map('extract',hostvars,'ansible_host') | list }}"
+
+    - set_fact:
+        cfguser: "{{ groups['Config.PostgreSQL'] | map('extract',hostvars,'db_username') | list }}"
+    - set_fact:
+        cfguser0: "{{ cfguser[0] }}"
+
+    - set_fact:
+        cfgpass: "{{ groups['Config.PostgreSQL'] | map('extract',hostvars,'db_password') | list }}"
+      no_log: true
+    - set_fact:
+        cfgpass0: "{{ cfgpass[0] }}"
+      no_log: true
+
+    - set_fact:
+        configurator_url: "jdbc:postgresql://{{ dbhost[0] }}:{{ dbport[0] }}/{{ dbname[0] }}"
+
+  when: groups['Config.PostgreSQL'] is defined
+
+- block:
+
+    - set_fact:
+        cfguser0: "{{ hostvars[groups['Communal.PostgreSQL'][0]]['configurator_user'] }}"
+        configurator_url: "{{ hostvars[groups['Communal.PostgreSQL'][0]]['db_url'] | urlencode }}"
+
+    - set_fact:
+        cfgpass0: "{{ hostvars[groups['Communal.PostgreSQL'][0]]['configurator_pass'] }}"
+      no_log: true
+
+  when: groups['Config.PostgreSQL'] is not defined and groups['Communal.PostgreSQL'] is defined
+
+
+#- block:
+#    - set_fact:
+#        configurator_url: "{{ hostvars[groups['Communal.PostgreSQL'][0]]['db_url'] | urlencode }}"
+#
+#
+#  when: groups['Communal.PostgreSQL'] is defined

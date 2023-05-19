@@ -1,0 +1,43 @@
+Варианты установки:
+installation_type
+
+# standalone-postgresql-only
+# standalone-patroni-etcd-pgbouncer
+
+== нужно определять наличие патрони
+
+#cluster-patroni-etcd-pgbouncer
+#cluster-patroni-etcd-pgbouncer-haproxy
+#cluster-patroni-etcd-pgbouncer-load_balancer
+
+
+
+
+https://confluence.sberbank.ru/pages/viewpage.action?pageId=2921239241
+
+https://confluence.sberbank.ru/display/EFSARCH/STD-11+V.1.0
+
+https://github.com/ansible/ansible/issues/33784
+https://github.com/ansible/ansible/pull/35165
+
+Обновление пакета PostgreSQL SE
+Последовательность действий для standalone конфигурации
+Последовательность действий для кластерной конфигурации
+До версии 4.1.0:
+4.1.0 -> 4.2.1
+4.2.1 > 4.2.2
+4.2.2 > 4.2.3
+4.2.3 > 4.2.4
+
+4.2.4 > 4.2.5
+4.2.5 > 4.2.6
+4.2.6 > 4.2.8
+4.2.8 > 4.3.0
+Последовательность действий для standalone конфигурации
+Последовательность действий для кластерной конфигурации
+
+
+Для каждого минорного обновления, приведенного ниже, необходимо вручную установить новый RPM пакет PostgreSQL SE.
+RPM включен в дистрибутив, и располагается в корневой директории архива с версией.
+Например, для версии 4.2.4 он называется: postgresql-sber-edition-04.002.04-redhat7_7.x86_64.rpm
+Порядок обновления зависит от конфигурации кластера:

@@ -1,0 +1,47 @@
+---
+- name: Delete install directory
+  file:
+    path: "{{ item }}"
+    state: absent
+  become: yes
+  ignore_errors: yes
+  with_items:
+    - "{{ wf_install_dir }}/READONLY"
+    - "{{ wf_install_dir }}/backup"
+    - "{{ wf_install_dir }}"
+    ###- "{{ java_home | default('/usr/WF/java')}}"
+
+- name: Find process {{ wf_os_user }}
+  shell: "pgrep -u {{ wf_os_user }}"
+  register: pgrep
+  ignore_errors: yes
+
+- name: Kill process {{ wf_os_user }}
+  shell: "sudo pkill -u {{ wf_os_user }}"
+  when: pgrep.rc == 0 and pgrep.stdout_lines != []
+
+- name: Delete wf_os_user
+  user:
+    name: "{{ wf_os_user }}"
+    state: absent
+    remove: yes        # Remove home user if yes; default no
+    force: yes         # works with remove is yes
+  become: yes
+  ignore_errors: yes
+
+- name: Delete wf_os_group
+  group:
+    name: "{{ wf_os_group }}"
+    state: absent
+  become: yes
+  ignore_errors: yes
+
+- name: Delete service
+  file:
+    path: "{{ item }}"
+    state: absent
+  become: yes
+  ignore_errors: yes
+  with_items:
+    - "{{ systemd_dir }}/{{ service_name }}-core.service"
+    - "{{ systemd_dir }}/{{ service_name }}.service"

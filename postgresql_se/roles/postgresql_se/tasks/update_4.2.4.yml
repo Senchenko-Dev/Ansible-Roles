@@ -1,0 +1,76 @@
+- name:
+  debug:
+    msg: "Обновление PostgreSQL SE   4.2.4 --> 4.2.5"
+
+- set_fact:
+    artifact_version: "D-04.002.05-524"
+    pgse_version_to: "4.2.5"
+
+- name:
+  debug:
+    msg: |
+      В данном обновлении поменялись спецификации DP как для сессий копирования WAL, так и для сессий FULL. При обновлении необходимо синхронизироваться с командой СРК, так, что бы обновление спецификаций не затянулось, иначе произойдет сбой при снятии резервных копий.
+      Новые спецификации СРК для конкретного кластера можно сгенерировать автоматически через специальную JJ https://nlb-jenkins-sigma/global/job/PPRBPSQL_CI02474762/job/generate_src_specs/ (детально описано тут Постановка PG SE на СРК в ручном режиме https://confluence.sberbank.ru/pages/viewpage.action?pageId=2908231303)
+      Либо, точечно изменить спецификации, как описан в пунктах 1d.vii и 2.k.
+
+- name: Download distr to localhost
+  include_tasks: utils/download_distr.yml
+
+- name: Обновление исполняемых файлов из пакета rpm
+  include_tasks: update_rpm.yml
+
+- block: # with root
+  - name: "Обновление скрипта бекапирования: папка"
+    file:
+      dest: "{{ manage_backup_bin }}"
+      state: directory
+      owner: postgres
+      group: postgres
+
+# todo необратимое действие!
+  - name: Обновление скрипта бекапирования
+    copy:
+      remote_src: false
+      src: "{{local_distr_path}}/pg_backup/manage_backup.py"
+      dest: "{{ manage_backup_bin }}/manage_backup.py"
+      owner: root
+      group: root
+      mode: 0751
+
+    # todo необратимое действие!
+  - name: Обновление скриптов, запускаемых из DP (Copy templates sh scripts for start-stop backup)
+    template:
+      src: "{{local_distr_path}}/installer/roles/SRC/templates/{{ item.source }}"
+      dest: "{{ manage_backup_bin }}/11_{{ item.dest }}"
+      owner: root
+      group: root
+      mode: 0751
+    with_items:
+      - { source: 'pg_se_archlogs.sh.j2', dest: 'pg_se_archlogs.sh' }
+      - { source: 'manage_backup.sh.j2', dest: 'manage_backup.sh' }
+
+  become_user: root
+  become: yes
+
+- block:  # become postgres
+#    - name: установить расширение pgse_backup
+#      postgresql_query:
+#        query: CREATE EXTENSION pgse_backup;
+#      register: pgse_backup_extension
+
+    - name: установить расширение pgse_backup
+      #  postgresql_query:
+      #    query: SELECT version()
+      shell: |
+        source ~/.bash_profile
+        $PGHOME/bin/psql -c 'CREATE EXTENSION IF NOT EXISTS pgse_backup;'
+      register: pgse_backup_extension
+
+  become: "{{ 'yes' if ( 'postgres' != ansible_user ) else 'no' }}"
+  become_user: postgres
+
+
+
+
+- debug:
+    msg: "обновлено до версии 4.2.5"

@@ -1,0 +1,54 @@
+- name: pre-set wf_facts
+  set_fact:
+    wf_exists: False
+    wf_other_version: True
+
+
+- block:
+  - service_facts:
+    no_log: true
+
+  - set_fact:
+      #  1. наличие сервиса wf_service_exists {{ wf_service }}
+      wf_service_exists: "{{ 'True' if (ansible_facts.services[wf_service] is defined)  else 'False' }}"
+      #  2. состояние сервиса
+      wf_service_running: "{{ 'True' if ((ansible_facts.services[wf_service] is defined) and (ansible_facts.services[wf_service].state == 'running'))  else 'False' }}"
+
+  #    3. наличие файлов
+  - name: Check wf install dir existing
+    stat:
+      path: "{{ wf_install_dir }}/bin"
+    register: wf_bin_exists
+
+    #    4. версия
+    #    - из файла
+  - name: version from shell
+    shell: >
+      {{ wf_install_dir }}/bin/standalone.sh -version | grep WildFly | sed -r 's/^[^(]+ ([0-9\.]+Final).+$/\1/'
+    register: wf_version_shell_result
+    when:
+      - wf_bin_exists.stat.isdir is defined and wf_bin_exists.stat.isdir
+
+    #    - из поднятого сервиса
+  - name: version from cli
+    shell: >
+      {{ wf_install_dir }}/bin/jboss-cli.sh -c --command=":read-attribute(name=product-version)" | awk -F \" 'NR==3 { print $4 }'
+    register: wf_version_cli_result
+    when:
+      - wf_service_exists|bool
+      - wf_service_running|bool
+
+  - set_fact:
+      wf_old_version: "{{ wf_version_cli_result.stdout | default(wf_version_shell_result.stdout) | default('')}}"
+
+# todo get WF version for install!!! --> wildfly_version откуда брать, если только урл?
+
+# выводы
+  - set_fact:
+      wf_exists: "{{ wf_service_exists|bool or wf_bin_exists.stat.isdir|default(false) }}"
+  - set_fact:
+      wf_other_version: "{{ (wildfly_version != wf_old_version)|bool }}"
+
+
+  become: yes
+  become_user: "{{ wf_os_user }}"

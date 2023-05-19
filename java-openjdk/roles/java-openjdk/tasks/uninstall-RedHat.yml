@@ -1,0 +1,12 @@
+---
+- name: Set package_name for yum
+  set_fact:
+    package_remove:
+      #- "jdk*"
+      - "java-1.8.0-openjdk*"
+      - "java-1.8.0-openjdk"
+      - "java-1.8.0-openjdk-devel"
+      - "java-1.8.0-openjdk-headless"
+      ### Oracle Java?
+      - "oracle-java8-installer"
+      - "java"

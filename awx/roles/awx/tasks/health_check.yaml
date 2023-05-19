@@ -1,0 +1,24 @@
+
+- name: Version AWX
+  shell: kubectl exec -i deploy/awx -c awx-web -- awx-manage --version
+  register: version_awx
+  
+- debug:
+    msg: "Version AWX: {{version_awx.stdout}}"
+  
+- name: Port AWX
+  shell: cat /root/awx-operator/awx-deploy.yaml | grep nodeport_port
+  register: port
+  
+- debug:
+    msg: "{{port.stdout}}"
+    
+- name: Version k3s
+  shell: kubectl version --short
+  register: kubectl_version
+  
+- debug:
+    msg: "{{kubectl_version.stdout_lines}}"
+
+
+    

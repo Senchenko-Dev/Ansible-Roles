@@ -1,0 +1,73 @@
+### update:
+#- проверяет возможность обновления установленной версии СПО (например, совместимость скрипта обновления с установленной версией СПО).
+#- При невозможности обновления роль завершается с ошибкой, при этом необходимо вывести результат неуспешно пройденных проверок.
+#- если нечего обновлять, то запускает install
+#- сохраняет существующие данные и конфигурацию СПО, при необходимости выполняет миграцию данных/конфигураций в новый формат
+#- устанавливает новую версию СПО. Тут возможны два варианта:
+#    - переиспользует задачи uninstall и install
+#    - либо обновляет СПО поверх уже установленной версии
+#- применяет сохраненные и смигрированные в новый формат конфигурации
+
+- name: check input vars
+  import_tasks: utils/check_vars.yml
+
+- name: check input hosts
+  import_tasks: utils/get_leader.yml
+
+# todo либо оставить блок ниже, либо уже расщепить на кластер/одиночная
+- block:  # when: is_leader or is_replica become_user: postgres
+
+  - name: detect patroni
+    block:
+    - name: Populate service facts
+      service_facts:
+    - set_fact:
+        patroni_present: "'patroni.service' in ansible_facts.services.keys()"
+    when: installation_type == 'standalone'
+
+
+  - name: detect pgse version
+    shell: |
+      source ~/.bash_profile
+      $PGHOME/bin/psql -c 'select version();' | egrep -o '(PostgreSQL Sber Edition [0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4})' | egrep -o '[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}'
+    register: pgse_version_stdout
+   #   is search('^[0-9]{1,5}$')   или  | regex_search('')
+
+  - set_fact:
+      pgse_current_version: "{{ pgse_version_stdout.stdout }}"
+
+  - name: Список версий
+    set_fact:
+      pgse_versions_list:  "{{ pgse_versions_list|default([]) + [hostvars[item].pgse_current_version] }}"
+    run_once: yes
+    delegate_to: localhost
+    when: hostvars[item].pgse_current_version is defined
+    with_items: "{{play_hosts}}"
+
+  - set_fact:
+      pgse_version_from: "{{ pgse_versions_list | min }}"
+
+  - debug:
+      var: pgse_current_version == pgse_version_from
+
+#  - fail: msg="======================= DEDUG ENDPOINT ================================================================="
+
+  - name: Set python interpreter
+    include_tasks: utils/python_venv.yml
+
+  - name: include update tasks
+    include_role:
+      name: postgresql_se
+      tasks_from: update_{{pgse_version_from}}.yml
+      vars_from: update_{{pgse_version_from}}.yml
+#      defaults_from: update_{{pgse_version_from}}.yml
+    # todo БУДЕТ РАБОТАТЬ ТАК?
+    when: pgse_current_version == pgse_version_from
+
+#  - name:
+#    include_tasks: update_{{pgse_version_from}}.yml
+
+
+  become: "{{ 'yes' if ( 'postgres' != ansible_user ) else 'no' }}"
+  become_user: postgres
+  when: is_leader or is_replica

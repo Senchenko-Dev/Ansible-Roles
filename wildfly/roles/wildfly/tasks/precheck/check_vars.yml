@@ -1,0 +1,56 @@
+- name: Set list for check
+  set_fact:
+    list_for_check:
+      - "wf_service"
+      - "wf_install_dir"
+      - "timeout_start_console_wf"
+      - "wf_os_user"
+      - "wf_os_user_pwd"
+      - "wf_os_group"
+      - "service_name"
+      - "service_systemd_dir"
+      - "systemd_dir"
+      - "nexusUser"
+      - "nexusPass"
+      - "WORKSPACE"
+      - "Oracle_jdbc_URL"
+      - "PostgreSQL_jdbc_URL"
+      - "wf_user"
+      - "wfadminpass"
+      - "wfapp_service"
+  when: list_for_check is undefined
+
+# ---------------------------------
+
+- name: Find undefined variables
+  set_fact:
+    list_undefined_vars: >-
+      {%- set tmp = [] -%}
+      {%- for i in list_for_check -%}
+          {%- if vars[i] is not defined -%}
+              {{ tmp.append(i) }}
+          {%- endif -%}
+      {%- endfor -%}
+      {{ tmp }}
+
+- name: Таблица переменных
+  debug:
+    msg:
+      - "UNDEFINED VARS:"
+      - "{{list_undefined_vars}}"
+  when: list_undefined_vars != []
+
+# todo неудобно читать
+- debug:
+    msg: "Variable {{ item }} is undefined!"
+  with_items: "{{ list_undefined_vars }}"
+  when: list_undefined_vars != []
+
+- fail:
+    msg: "All variables must be defined! See previous debug."
+  when: list_undefined_vars != []
+
+- debug:
+    msg: "All variables are defined!"
+  when: list_undefined_vars == []
+

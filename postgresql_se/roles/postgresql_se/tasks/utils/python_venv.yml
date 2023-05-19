@@ -1,0 +1,9 @@
+- name: Check python version
+  debug:
+    var: ansible_python_version
+  # искать питон....?  which python3
+
+- name: Set python interpretator
+  set_fact:
+    ansible_python_interpreter: "{{ PYTHON_VENV }}/bin/python3"
+#    ansible_python_interpreter: "{{ python3_path | default( PGHOME + '/postgres_venv/bin/python3') }}"

@@ -1,0 +1,332 @@
+- name: Get IP from fact
+  set_fact:
+    ip: "{{ ansible_default_ipv4.address | default(ansible_all_ipv4_addresses[0]) }}"
+
+- name: Start and enable firewalld.
+  service:
+     name: firewalld
+     state: started
+     enabled: true
+
+- name: Settings firewall
+  firewalld:
+    port: "{{ item }}"
+    permanent: yes
+    state: enabled
+  when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+  loop:
+     - 6443/tcp
+     - 2379-2380/tcp
+     - 10250/tcp
+     - 10251/tcp
+     - 10252/tcp
+     - 10255/tcp
+     - 8472/udp
+     - 30000-32767/tcp
+     - 8888/tcp
+
+- firewalld:
+    masquerade: yes
+    state: enabled
+    permanent: yes
+
+- name: reload service firewalld
+  systemd:
+    name: firewalld
+    state: reloaded
+
+- name: Install RedHat Nginx
+  yum:
+    name: nginx
+    state: present
+
+- name: nginx systemd
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started
+  
+- name: Copy Template
+  template:
+    src: nginx.conf
+    dest: /etc/nginx
+    owner: "root"
+    group: "root"
+    
+- name: nginx -s reload
+  shell: nginx -s reload
+
+- name: install unzip | docker | container-selinux | selinux-policy-base
+  yum:
+    name:
+      - unzip
+      - docker
+      - container-selinux
+      - selinux-policy-base
+    state: present
+
+
+- name: Enable Docker
+  systemd:
+    name: docker
+    enabled: yes
+
+
+- name: Start Docker
+  systemd:
+    name: docker
+    state: started
+
+
+- name: Download k3s
+  get_url:
+    url: http://10.42.4.125/mirror/docker/images/k3s/k3s
+    dest: /usr/bin
+    mode: '0777'
+
+
+- name: Download k3s-selinux
+  get_url:
+    url: http://10.42.4.125/mirror/docker/images/k3s/k3s-selinux-0.4-1.el7.noarch.rpm
+    dest: /usr/bin
+    mode: '0777'
+
+
+- name: Install k3s-selinux
+  shell: rpm -ivh --nodeps --force k3s-selinux-0.4-1.el7.noarch.rpm
+  args:
+    chdir: /usr/bin
+
+
+- name: Download install.sh
+  get_url:
+    url: http://10.42.4.125/mirror/docker/images/k3s/install.sh
+    dest: /usr/bin
+    mode: '0777'
+
+
+- name: INSTALL k3s
+  shell: ./install.sh
+  args:
+    chdir: /usr/bin
+  environment:
+    INSTALL_K3S_BIN_DIR: /usr/bin
+    INSTALL_K3S_SKIP_DOWNLOAD: "true"
+
+
+- name: delete string
+  lineinfile:
+    dest: /etc/docker/daemon.json
+    state: absent
+    regexp: "{}"
+
+
+- name: settings docker
+  blockinfile:
+    path: /etc/docker/daemon.json
+    block: |
+      {
+        "insecure-registries" : ["10.42.4.125:5000"],
+        "registry-mirrors": ["10.42.4.125:5000"]
+      }
+
+
+- name: delete string
+  lineinfile:
+    dest: /etc/docker/daemon.json
+    state: absent
+    regexp: "#"
+
+
+- name: Create file register.yaml
+  file:
+    path: /etc/rancher/k3s/registries.yaml
+    state: touch
+
+
+- name: add in file register.yaml settings
+  blockinfile:
+    path: /etc/rancher/k3s/registries.yaml
+    block: |
+      mirrors:
+        docker.io:
+          endpoint:
+            - "http://10.42.4.125:5000"
+        "10.42.4.125:5000":
+          endpoint:
+            - "http://10.42.4.125:5000"
+        quay.io:
+          endpoint:
+            - "http://10.42.4.125:5000"
+        gcr.io:
+          endpoint:
+            - "http://10.42.4.125:5000"
+
+
+- name: Restart Docker
+  systemd:
+    name: docker
+    state: restarted
+
+
+- name: Restart k3s
+  systemd:
+    name: k3s
+    state: restarted
+
+
+- name: Download AWX
+  get_url:
+    url: http://10.42.4.125/mirror/docker/images/awx/other/awx-operator.zip
+    dest: /root
+
+- name: unzip awx-operator
+  unarchive:
+    src: /root/awx-operator.zip
+    dest: /root
+    remote_src: yes
+
+
+- name: replace all quay.io
+  shell: grep -Rl quay.io * | xargs sed -i "s|quay.io|10.42.4.125:5000|g"
+  args:
+    chdir: /root/awx-operator
+
+
+- name: Download kustomize
+  get_url:
+    url: http://10.42.4.125/mirror/docker/images/k3s/kustomize
+    dest: /usr/bin
+    mode: '0777'
+
+
+#############-kustomization.yaml-##############
+- name: Crete file kustomization.yaml
+  file:
+    path: /root/awx-operator/kustomization.yaml
+    state: touch
+
+
+- name: Add in file kustomization.yaml
+  blockinfile:
+    path: /root/awx-operator/kustomization.yaml
+    block: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+        - config/default/
+      images:
+        - name: 10.42.4.125:5000/ansible/awx-operator
+          newTag: 0.21.0
+      namespace: awx
+
+
+- name: Delete string
+  lineinfile:
+    dest: /root/awx-operator/kustomization.yaml
+    state: absent
+    regexp: "#"
+
+
+- name: Kustomize Build
+  shell: kustomize build . > 111.yml
+  args:
+    chdir: /root/awx-operator
+
+
+- name: kubectl Apply
+  shell: kubectl apply -f 111.yml
+  args:
+    chdir: /root/awx-operator
+
+#############################################################
+
+
+- name: namespace for kubectl
+  shell: kubectl config set-context --current --namespace=awx
+
+
+##################-awx-deploy.yaml-#####################
+
+- name: Create file awx-deploy.yaml
+  file:
+    path: /root/awx-operator/awx-deploy.yaml
+    state: touch
+
+- name: Apply
+  shell: |
+    cat <<EOF | kubectl create -f -
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: static-data-pvc
+      namespace: awx
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 5Gi
+    EOF
+
+
+
+- name:  Add in file awx-deploy.yaml
+  blockinfile:
+    path: /root/awx-operator/awx-deploy.yaml
+    block: |
+      ---
+      apiVersion: awx.ansible.com/v1beta1
+      kind: AWX
+      metadata:
+        name: awx
+      spec:
+        service_type: nodeport
+        projects_persistence: true
+        projects_storage_access_mode: ReadWriteOnce
+        web_extra_volume_mounts: |
+          - name: static-data
+            mountPath: /var/lib/projects
+        extra_volumes: |
+          - name: static-data
+            persistentVolumeClaim:
+              claimName: static-data-pvc
+
+
+- name: kubectl apply -f awx-deploy.yaml
+  shell: kubectl apply -f awx-deploy.yaml
+  args:
+    chdir: /root/awx-operator
+
+############################################################
+
+- name: Wait for pods to come up ~120 seconds left....
+  wait_for:
+    timeout=120
+
+- name: Show Pods AWX
+  shell: kubectl get pods -n awx
+  register: kubectl_get_pods
+
+- debug:
+    var: kubectl_get_pods.stdout_lines
+
+- name: PORT
+  shell: kubectl get svc -l "app.kubernetes.io/managed-by=awx-operator" | awk '{print $5}' | grep -Eow "[0-9]{5}"
+  register: PORT
+
+- name: Wait for WEB UI come up ~180 seconds left....
+  wait_for:
+    timeout=185
+
+- name: Create Admin Password
+  shell: kubectl get secret awx-admin-password -o jsonpath="{.data.password}" | base64 --decode
+  register: Admin_Password
+
+- debug:
+    msg: "Логин: admin   Пароль: {{Admin_Password.stdout}}"
+
+- debug:
+    msg: "Web UI AWX на сокете http://{{ip}}:{{PORT.stdout}} "
+

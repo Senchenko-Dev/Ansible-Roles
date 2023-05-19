@@ -1,0 +1,10 @@
+---
+- name: Set package_name for apt-get
+  set_fact:
+    package_remove:
+      - "openjdk-8*"
+      - "openjdk-8-jdk"
+      - "openjdk-8-jre"
+      ### Oracle Java?
+      - "oracle-java8-installer"
+      - "java"

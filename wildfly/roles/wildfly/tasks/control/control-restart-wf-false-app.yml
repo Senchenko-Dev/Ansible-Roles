@@ -1,0 +1,7 @@
+---
+
+- name: stop server
+  include_tasks: control/control-stop-console-wf.yml
+
+- name: start server
+  include_tasks: control/control-start-console-wf.yml

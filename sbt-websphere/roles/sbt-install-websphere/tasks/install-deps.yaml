@@ -1,0 +1,7 @@
+- name: Install Java
+  package:
+    name:
+      - "{{ WAS_JAVA_VERSION }}"
+    state: latest
+
+

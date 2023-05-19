@@ -1,0 +1,5 @@
+AdminTask.createGroup ('[-cn {{ DEVELOPER_WEB_LOGIN }}]')
+AdminTask.createUser('[-uid {{ DEVELOPER_WEB_LOGIN }} -cn {{ DEVELOPER_WEB_LOGIN }} -sn {{ DEVELOPER_WEB_LOGIN }} -password {{ DEVELOPER_WEB_PASSWORD }} ]')
+AdminTask.addMemberToGroup('[-memberUniqueName uid={{ DEVELOPER_WEB_LOGIN }},o=defaultWIMFileBasedRealm -groupUniqueName cn={{ DEVELOPER_WEB_LOGIN }},o=defaultWIMFileBasedRealm]')
+AdminTask.mapGroupsToAdminRole('[-roleName monitor -accessids [group:defaultWIMFileBasedRealm/cn={{ DEVELOPER_WEB_LOGIN }},o=defaultWIMFileBasedRealm ] -groupids [{{ DEVELOPER_WEB_LOGIN }}@defaultWIMFileBasedRealm ]]')
+AdminConfig.save()

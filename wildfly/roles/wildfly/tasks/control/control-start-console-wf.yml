@@ -1,0 +1,52 @@
+---
+- set_fact:
+    is_wf_user: "{{ (wf_os_user == ansible_user) |bool }}"
+
+- block:
+    
+#    - name: Get core service name
+#      shell: "sudo systemctl show {{ wf_service }} | grep BindsTo | sed -e 's/.*=//'"
+#      register: core_service
+#
+#    - set_fact:
+#        wf_service_core: "{{ core_service.stdout }}"
+
+    - name: "Start WildFly service (via shell)"
+      shell: "sudo systemctl restart {{ wf_service }}" # todo через ansible!
+      become_user: "{{wf_os_user}}"
+      become: "{{ 'yes' if is_wf_user|bool else 'no' }}"
+#      when: is_wf_user |bool
+#
+#    - name: "Start WildFly service (via state)"
+#      systemd:
+#        name: "{{ wf_service }}"
+#        state: started
+#      become: yes
+##      ignore_errors: true
+#      when: not (is_wf_user|bool)
+
+
+  rescue:
+
+    - name: Get WF service log
+      shell: "cat {{ wf_install_dir }}/standalone/log/wf_service_control.log"
+      register: wf_service_log
+      ignore_errors: true
+      no_log: true
+
+    - name: Show WF service log
+      debug:
+        var: wf_service_log.stdout_lines
+      when: wf_service_log.rc == 0
+      
+    - name: Fail...
+      fail:
+        msg: "Service {{ wf_service }} is not started"
+#        msg: "Service {{ wf_service_core }} is not started"
+
+  when: wf_service is defined and double_service == true
+
+- name: wait for startup is happened
+  wait_for:
+    path: "{{ wf_install_dir }}/standalone/tmp/startup-marker"
+    timeout: "{{ timeout_start_console_wf }}"

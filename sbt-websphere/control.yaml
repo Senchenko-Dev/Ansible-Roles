@@ -1,0 +1,11 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  become: yes
+  tasks:
+
+  - name: inslude_tasks
+    include_role:
+       name: sbt-install-websphere
+       tasks_from: control
+    vars:
+      websphere_service_state: restarted    

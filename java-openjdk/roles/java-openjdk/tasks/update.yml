@@ -1,0 +1,9 @@
+---
+- name: Uninstall
+  include_tasks: "uninstall.yml"
+
+- name: Install
+  include_tasks: "install.yml"
+
+#- name: Configure
+#  include_tasks: "configure.yml"

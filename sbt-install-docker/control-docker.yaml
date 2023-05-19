@@ -1,0 +1,17 @@
+- hosts: "{{ hosts_group_WF }}"
+  max_fail_percentage: 0
+  tasks:
+  - name: install
+    include_role:
+      name: docker-install
+      tasks_from: control
+    vars:
+      docker_control_state: started
+
+#https://docs.ansible.com/ansible/2.9/modules/service_module.html#service-module
+#state:
+# Choices:
+#   reloaded
+#   restarted
+#   started
+#   stopped

@@ -1,0 +1,20 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  serial: "{{ serial | default('100%') }}"
+  vars:
+    ansible_user: "{{ become_user }}"
+    ansible_password: "{{ ansible_become_pass }}"
+
+  tasks:
+
+    - name: Temporary dir creation
+      file:
+        path: /tmp/987
+        state: directory
+        recurse: yes
+      register: tmpdir
+
+    - name: Download
+      include_role:
+        name: wildfly
+        tasks_from: download-distr

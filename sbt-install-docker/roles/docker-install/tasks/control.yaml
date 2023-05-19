@@ -1,0 +1,8 @@
+---
+- name: Control task for Docker.
+  service:
+    name: docker
+    state: "{{ docker_control_state }}"
+    enabled: "{{ docker_service_enabled }}"
+  become: yes
+  ignore_errors: "{{ ansible_check_mode }}"

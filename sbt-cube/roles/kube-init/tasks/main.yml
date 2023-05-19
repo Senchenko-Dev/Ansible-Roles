@@ -1,0 +1,114 @@
+---
+# Alright we're using the kubeadm init
+# You can reset this with:
+#  [root@kube-master centos]# kubeadm --help | grep reset
+#    reset       Run this to revert any changes made to this host by 'kubeadm init' or 'kubeadm join'.
+
+- name: create kubeadm config file
+  block:
+    - name: Install jq binary
+      get_url:
+        url: https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64
+        dest: /usr/bin/jq
+
+    - name: set jq binary permission
+      file:
+        path: /usr/bin/jq
+        mode: 0755
+
+    - name: check kubeadm version (major)
+      shell: >
+        kubeadm version -o json | jq -r .clientVersion.major
+      register: kubeadm_version_major
+
+    - name: check kubeadm version (minor)
+      shell: >
+        kubeadm version -o json | jq -r .clientVersion.minor | sed -e 's/\+//g'
+      register: kubeadm_version_minor
+
+    - name: create kubeadm config file (<= 1.12)
+      template:
+        src: kubeadm.cfg.v1alpha.j2
+        dest: /root/kubeadm.cfg
+      when: kubeadm_version_minor.stdout|int <= 12
+
+    - name: create kubeadm config file (>= 1.13)
+      template:
+        src: kubeadm.cfg.v1beta.j2
+        dest: /root/kubeadm.cfg
+      when: kubeadm_version_minor.stdout|int >= 13
+
+    - name: create kubeadm config file (>= 1.16)
+      template:
+        src: kubeadm.cfg.v1beta2.j2
+        dest: /root/kubeadm.cfg
+      when: kubeadm_version_minor.stdout|int >= 16
+
+- name: configure audit
+  block:
+    - name: create audit directory
+      file:
+        path: /etc/kubernetes/audit
+        state: directory
+
+    - name: create audit policy file
+      template:
+        src: audit.yaml.j2
+        dest: /etc/kubernetes/audit/audit.yaml
+  when: enable_auditlog | default(false) | bool
+
+- name: Default cri-o flags to empty
+  set_fact:
+    arg_crio: ""
+
+- name: Set cri-o flags
+  set_fact:
+    arg_crio: "--ignore-preflight-errors=all"
+  when: container_runtime == "crio"
+
+- name: Default k8s version to empty
+  set_fact:
+    k8s_version: ""
+
+- name: set upload-certs in kubeadm option
+  set_fact:
+    k8s_upload_certs: ""
+
+- name: set upload-certs in kubeadm option
+  set_fact:
+    k8s_upload_certs: "--upload-certs"
+  when: groups.master_slave is defined and groups.master_slave|length > 0
+
+# Was trying to use flannel and running with:
+#     kubeadm init > /etc/kubeadm.init.txt
+# abandonded for now...
+- name: Run kubeadm init
+  shell: >
+    kubeadm init {{ k8s_version }} {{ arg_crio }} {{ k8s_upload_certs }} --config=/root/kubeadm.cfg > /var/log/kubeadm.init.log
+  args:
+    creates: /etc/.kubeadm-complete
+
+- name: Mark init complete
+  file:
+    path: /etc/.kubeadm-complete
+    state: directory
+
+- name: Get join command # noqa no-changed-when
+  shell: >
+    kubeadm token create --print-join-command
+  register: kubeadm_join_output
+
+- name: Set fact with join command
+  set_fact:
+    kubeadm_join_command: "{{ kubeadm_join_output.stdout }}"
+
+- name: Get certificate-key
+  shell: >
+          set -o pipefail && kubeadm init phase upload-certs --upload-certs -v 0 2> /dev/null | tail -n 1
+  register: kubeadm_cert_key_output
+  when: groups.master_slave is defined and groups.master_slave|length > 0
+
+- name: Set fact with certificate-key
+  set_fact:
+    kubeadm_cert_key: "{{ kubeadm_cert_key_output.stdout }}"
+  when: groups.master_slave is defined and groups.master_slave|length > 0

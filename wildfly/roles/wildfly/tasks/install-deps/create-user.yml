@@ -1,0 +1,29 @@
+---
+# wildfly/roles/wildfly/tasks/install-deps.yml
+
+- name: Create group
+  group:
+    name: "{{ wf_os_group }}"
+    state: present
+  become: yes
+
+- set_fact:
+    wf_os_user_pwd: "{{ wf_os_user_pwd }}"
+  no_log: true
+
+#- debug:
+#    msg: "{{ item }}"
+#  with_items:
+#    - "{{ wf_os_user }}"
+#    - "{{ wf_os_group }}"
+#    - "{{ wf_os_user_pwd }}"
+
+- name: Create user
+  user:
+    name: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    password: "{{ wf_os_user_pwd | password_hash('sha512') }}"
+    state: present
+    system: no
+    createhome: yes
+  become: yes

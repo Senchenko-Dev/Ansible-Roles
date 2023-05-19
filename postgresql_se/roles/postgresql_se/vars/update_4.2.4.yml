@@ -1,0 +1,9 @@
+pg_version: 11
+#pg_backup_user_passwd: # задан в стенде
+#PGPORT: "{{ db_port }}" # задан в стенде
+PGBACKUP: /pgarclogs/11 # зависит от версии
+
+manage_backup_bin: /opt/omni/lbin
+
+#clustername: имя кластера (можно взять из старого скрипта) # задан в стенде
+PYTHON_VENV: /usr/local/pgsql/postgres_venv # задан в стенде PYTHON_VENV: "{{PGHOME}}/postgres_venv"

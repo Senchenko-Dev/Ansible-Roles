@@ -1,0 +1,10 @@
+# todo если mode: default, то смотреть по правам на dest/
+
+- copy:
+    src: "{{item.src | basename}}"
+    dest: "{{item.dest}}/{{item.src | basename}}"
+    force: "{{ force | default('yes') }}"
+    mode: "{{mode}}"
+    owner: "{{owner}}"
+    group: "{{group}}"
+  loop: "{{overwrite_files}}"

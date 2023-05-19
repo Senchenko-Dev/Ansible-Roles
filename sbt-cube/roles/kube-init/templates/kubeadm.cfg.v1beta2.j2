@@ -1,0 +1,80 @@
+# Full parameters @ https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+# for v1.13 (https://godoc.org/k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1)
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+apiServer:
+  extraArgs:
+    enable-admission-plugins: NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook
+{% if enable_auditlog|default(false) %}
+    audit-log-path: /var/log/kubernetes/audit.log
+    audit-log-maxage: "30"
+    audit-log-maxbackup: "10"
+    audit-log-maxsize: "100"
+    audit-policy-file: /etc/kubernetes/audit/audit.yaml
+    authorization-mode: Node,RBAC
+  timeoutForControlPlane: 4m0s
+  extraVolumes:
+  - name: "audit-policy"
+    hostPath: /etc/kubernetes/audit
+    mountPath: /etc/kubernetes/audit
+    readOnly: false
+    type: DirectoryOrCreate
+  - name: "audit-log"
+    hostPath: /var/log/kubernetes
+    mountPath: /var/log/kubernetes
+    readOnly: false
+    type: DirectoryOrCreate
+{% endif %}
+{% if enable_endpointslice|default(false) %}
+    feature-gates: "EndpointSlice=true"
+{% endif %}
+networking:
+  podSubnet: {{ pod_network_cidr }}/16
+{% if control_plane_listen_all %}
+controllerManager:
+  extraArgs:
+    address: 0.0.0.0
+scheduler:
+  extraArgs:
+    address: 0.0.0.0
+{% endif %}
+{% if groups.lb is defined and groups.lb|length > 0 %}
+{% for node in groups["lb"] %}
+controlPlaneEndpoint: {{ hostvars[node]['ansible_host'] }}:6443
+{% endfor %}
+{% endif %}
+{% if enable_endpointslice|default(false) %}
+controllerManager:
+  extraArgs:
+    feature-gates: "EndpointSlice=true"
+{% endif %}
+{% if k8s_image_repository|default("") != "" %}
+imageRepository: {{ k8s_image_repository }}
+{% endif %}
+{% if kube_version != "latest" %}
+kubernetesVersion: {{ kube_version }}
+{% endif %}
+---
+kind: InitConfiguration
+apiVersion: kubeadm.k8s.io/v1beta2
+{% if container_runtime == "crio" %}
+nodeRegistration:
+  criSocket: /var/run/crio/crio.sock
+{% if enable_endpointslice|default(false) %}
+  kubeletExtraArgs:
+    feature-gates: "EndpointSlice=true"
+{% endif %}
+{% endif %}
+---
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+{% if container_runtime == "crio" %}
+cgroupDriver: systemd
+{% endif %}
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+{% if enable_endpointslice|default(false) %}
+featureGates:
+  EndpointSlice: true
+{% endif %}

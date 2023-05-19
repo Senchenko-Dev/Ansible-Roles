@@ -1,0 +1,5 @@
+[local]
+localhost ansible_connection=local
+
+[nginx_iag_ii]
+#sbt-ouiefs-6325.vm.mos.cloud.sbrf.ru ansible_ssh_user="user" ansible_ssh_pass="pass"

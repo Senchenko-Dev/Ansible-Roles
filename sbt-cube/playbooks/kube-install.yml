@@ -1,0 +1,93 @@
+---
+- import_playbook: ka-init/init.yml
+
+- hosts: lb
+  become: true
+  become_user: root
+  tasks: []
+  roles:
+    - { role: lb-setup }
+
+- hosts: master,nodes,master_slave
+  become: true
+  become_user: root
+  tasks: []
+  roles:
+    - { role: multus-2nics-setup, when: network_type == '2nics' }
+    - { role: bridge-setup, when: network_type == 'bridge' }
+    - { role: optional-packages }
+    # You can add "crio_force: true" if you need to run the builds again.
+    - { role: cri-o-install, when: container_runtime == 'crio', crio_force: false }
+    - { role: install-docker, when: container_runtime == 'docker' }
+    - { role: kube-install }
+
+- hosts: master,nodes,master_slave
+  become: true
+  become_user: root
+  tasks:
+    - name: Set ipv4 ip_forward to 1
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: 1
+        sysctl_set: yes
+        state: present
+        reload: yes
+    - name: Load module if parameter is not in node # noqa no-changed-when
+      shell: >
+        if [ ! -f /proc/sys/net/bridge/bridge-nf-call-iptables ]; then \
+          modprobe br_netfilter; \
+        fi
+    - name: Set bridge-nf-call-iptables to 1
+      sysctl:
+        name: net.bridge.bridge-nf-call-iptables
+        value: 1
+        sysctl_set: yes
+        state: present
+        reload: yes
+
+- hosts: master
+  become: true
+  become_user: root
+  tasks: []
+  roles:
+    - { role: kube-init }
+    - { role: configure-kubectl }
+
+- hosts: master_slave
+  become: true
+  become_user: root
+  pre_tasks:
+    - name: Get cert related args from master
+      set_fact:
+        kubeadm_cert_key: "{{ hostvars[groups['master'][0]]['kubeadm_cert_key'] }}"
+    - name: Get kubeadm_join_command from master
+      set_fact:
+        kubeadm_join_command: "{{ hostvars[groups['master'][0]]['kubeadm_join_command'] }}"
+  tasks: []
+  roles:
+    - { role: kube-master-join-cluster }
+    - { role: configure-kubectl }
+
+# without become.
+- hosts: master, master_slave
+  tasks: []
+  roles:
+    - { role: kube-niceties }
+
+- hosts: nodes
+  become: true
+  become_user: root
+  pre_tasks:
+    - name: Get kubeadm_join_command from master
+      set_fact:
+        kubeadm_join_command: "{{ hostvars[groups['master'][0]]['kubeadm_join_command'] }}"
+  tasks: []
+  roles:
+    - { role: kube-join-cluster }
+
+- hosts: master
+  become: true
+  become_user: root
+  tasks: []
+  roles:
+    - { role: kubectl-proxy-systemd }

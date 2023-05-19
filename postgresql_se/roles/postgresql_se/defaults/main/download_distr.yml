@@ -1,0 +1,15 @@
+group_id: Nexus_PROD
+artifact_id: 'CI02289206_PostgreSQL_Sber_Edition'
+#artifact_version: D-04.002.04-424
+nexus_classifier: distrib
+nexus_artifact_type: "tar.gz"
+#nexus_repo_url: "{{ nexus_repository_url }}"
+
+nexus_url_username: "{{ nexusUser }}"
+nexus_url_password: "{{ nexusPass }}"
+validate_ssl: no
+
+
+# todo testvars!! delete and uncomment in ../vars/
+distr_path: "/home/postgres/test"
+local_distr_path: "{{WORKSPACE}}/postgres"

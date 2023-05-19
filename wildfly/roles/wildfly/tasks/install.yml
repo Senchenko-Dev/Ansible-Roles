@@ -1,0 +1,56 @@
+---
+- debug:
+    msg: "---------------- INSTALL ----------------"
+
+#    wf_exists: False
+#    wf_other_version: True
+
+- name: Check WF installed
+  include_tasks: install/check-installed_url.yml
+
+- debug:
+    var: force_reinstall|bool
+
+- debug:
+    var: force_update|bool
+
+- block:
+  - debug:
+      msg: "WF exists but other version. Run 'update' to reinstall" # todo по стд11 тут падать или обновлять?
+  - fail:
+      msg: "В соответствии с STD-11"
+
+  when:
+    - wf_exists
+    - wf_other_version
+    - not force_update|bool
+    - not force_reinstall|bool
+
+
+- block:
+  - debug:
+      msg: "WF exists with same version. Run 'install' with force_update=true or 'update' to reinstall" # todo по стд11 тут падать или обновлять?
+  when:
+    - wf_exists
+    - not wf_other_version
+    - not force_reinstall|bool
+
+- name: Start installation
+  include_tasks: install/install_start.yml
+  when: (not wf_exists) or (force_reinstall|bool|default(false)) or (force_update|bool|default(false) and wf_other_version)
+
+- name: Make file with installed url
+  template:
+    src: wildfly_url.j2
+    dest: "{{ wf_install_dir }}/wildfly_url"
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: 0600
+  become: yes
+  become_user: root
+
+# todo backup тут??
+#- include_tasks: update.yml  # ???
+#  when: (not wf_exists) or (wf_exists and wf_other_version)
+
+# todo show results

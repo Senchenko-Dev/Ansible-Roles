@@ -1,0 +1,14 @@
+---
+- name: Teardown kube nodes
+  shell: >
+    kubeadm reset -f
+
+- name: Remove all semaphores
+  file:
+    dest: "{{ item }}"
+    state: absent
+  with_items:
+    - "/etc/.kubeadm-complete"
+    - "{{ kubectl_home }}/.kubeadm-podnetwork-complete"
+    - "/etc/.kubeadm-joined"
+    - "{{ kubectl_home }}/admin.conf"

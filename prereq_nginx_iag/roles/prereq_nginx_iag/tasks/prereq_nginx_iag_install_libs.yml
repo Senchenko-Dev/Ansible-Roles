@@ -1,0 +1,110 @@
+---
+  # Create on work directories on remote servers
+- name: create remote work directories for nginx-iag and log_rsys
+  file: 
+    path: "{{ item.path }}"
+    owner: "{{ item.user }}"
+    group: "{{ item.group }}"
+    state: directory
+    mode: "u=rwx,g=rwx,o=r"
+  with_items:
+    - "{{ { 'path':'/opt/nginx-iag', 'user': 'nginx-iag','group': 'nginx-iag' } }}"
+    - "{{ { 'path':'/opt/rsyslogd', 'user': 'log_rsys', 'group': 'log_rsys' } }}"
+  become: yes
+  become_user: root
+  become_method: sudo
+  loop_control:
+    label: "{{ item.path }}"
+
+  # Check created work directories
+- name: check created remote work directories
+  shell: |
+    ls -la /opt/nginx-iag \
+    && ls -la /opt/rsyslogd
+  become: yes
+  become_user: root
+  become_method: sudo
+  register: result_created_directories
+
+  # Show result of created directories
+- name: show created remote work directories result
+  debug:
+    msg: |
+      {% if 'No such file or directory' not in result_created_directories.stdout %}SUCESS: Directories created successfully{%else%}ERROR: Directories does not exist{%endif%}
+
+  # Copy check.sh to remote servers
+- name: copy check.sh to remote servers
+  copy:
+    src: "{{ item.src }}"
+    dest: "/tmp"
+    mode: "{{ item.perm }}"
+  become: yes
+  become_user: root
+  become_method: sudo
+  with_items:
+  - "{{ { 'src': 'check.sh', 'perm': '0755' } }}"
+  loop_control:
+    label: "{{ item.src }}"
+
+  # Run check.sh on remote servers
+- name: run check.sh
+  shell: |
+    /tmp/check.sh
+  register: check_result
+  ignore_errors: true
+  no_log: true
+
+  # Show result of check.sh
+- name: show installation status of libunwind library
+  debug:
+    msg: "{% if 'ERROR' in check_result.stdout %}ERROR: libunwind library is not installed{% else %}SUCESS: libunwind library installed{% endif %}"
+    #- name: download
+    #shell: "curl -u {{ nexusUser }}:{{ nexusPass }} {{ prereq_nginx_iag_rsysloglib_url }} --output {{WORKSPACE}}/rsyslog_libraries-1.1.tar.gz > /dev/null 2>&1"
+    #delegate_to: localhost
+- name: dir
+  file:
+    path: /tmp/rsyslog_mqlibs
+    state: directory
+    mode: '0755'
+- name: copy
+  copy:
+    src: "{{WORKSPACE}}/rsyslog_libraries-1.1.tar.gz"
+    dest: /tmp/rsyslog_mqlibs/
+ # Install rsyslog mq libraries from url defined in vars.yml - prereq_nginx_iag_rsysloglib_url
+- name: install rsyslog mq libraries
+  shell: |
+    echo "Create temp directory" \
+    && cd /tmp/rsyslog_mqlibs \
+    && echo "Unarchive rsyslog_libraries-1.1.tar.gz" \
+    && tar -xzf rsyslog_libraries-1.1.tar.gz -C /tmp/rsyslog_mqlibs > /dev/null 2>&1 \
+    && cd /tmp/rsyslog_mqlibs/rsyslog_lib \
+    && ./install.sh \
+    && cd /opt/mqm \
+    && echo "Directory /opt/mqm contents" \
+    && ls -la \
+    && echo "Check that libmqic_r installed" \
+    && ls -la lib/ | grep mqic_r
+  become: yes
+  become_user: root
+  become_method: sudo
+  register: result_rsyslogmq_libraries
+
+  # Show result of library installation
+- name: show libraries installation result
+  debug:
+    msg: |
+       {% if ('libmqic_r.so' not in result_rsyslogmq_libraries.stdout) %}ERROR: installation of rsyslog_libraries failed{% else %}SUCESS: rsyslog_libraries installed{% endif %}
+
+  # Cleanup work directories
+- name: cleanup local work directories for nginx-iag and log_rsys
+  file: 
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/tmp/rsyslog_libraries"
+    - "/tmp/rsyslog_libraries-1.1.tar.gz"
+    - "/tmp/rsyslog_mqlibs"
+    - "/tmp/check.sh"
+  become: yes
+  become_user: root
+  become_method: sudo

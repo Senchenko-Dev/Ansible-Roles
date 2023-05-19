@@ -1,0 +1,88 @@
+---
+- name: test 1
+  shell: which java
+  ignore_errors: yes
+
+- name: test 2
+  shell: "readlink -f $(which java)"
+  ignore_errors: yes
+
+- name: Delete install directory
+  file:
+    path: "{{ java_home | default('/usr/WF/java') }}"
+    state: absent
+  become: yes
+  ignore_errors: yes
+
+- name: uninstalling JDK
+  shell: "rpm -e jdk1.8-2000:1.8.0_241-fcs.x86_64"
+  become: yes
+  ignore_errors: yes
+
+- name: install java openjdk
+  shell: sudo yum install java-1.8.0-openjdk-devel -y
+
+- name: which
+  shell: which java
+
+- name: test 2
+  shell: "readlink -f $(which java)"
+
+- name: test 3
+  shell: readlink -f $(which java) | sed 's/\/bin\/java//g'
+
+- name: find java openjdk dir
+  ###shell: "dirname $(dirname $(which java))"
+  shell: readlink -f $(which java) | sed 's/\/bin\/java//g'
+  register: openjdk_dir
+
+- name: check
+  fail:
+    msg: "ERROR!!! Work cannot be continued because openjdk_dir = {{ openjdk_dir.stdout }}"
+  when: openjdk_dir.stdout == '/usr' or openjdk_dir.stdout == '/usr/' or openjdk_dir.stdout == '/usr/WF' or openjdk_dir.stdout == '/usr/WF/' or openjdk_dir.stdout == '/usr/WF/WF_PPRB' or openjdk_dir.stdout == '/usr/WF/WF_PPRB/'
+
+- name: set variable java_home
+  set_fact:
+    java_home: "{{ openjdk_dir.stdout }}"
+
+- name: create path
+  file:
+    path: /usr/java
+    state: directory
+  become: yes
+  ignore_errors: yes
+
+- name: create a symlink
+  shell: ln -s "{{ java_home }}" /usr/java/latest
+  become: yes
+
+- name: Set permissions
+  file:
+    path: "{{ item }}"
+    state: directory
+    recurse: yes
+    owner: "{{ wf_os_user | default('wfadmin')}}"
+    group: "{{ wf_group | default('wfgroup') }}"
+  become: yes
+  with_items:
+    - "/usr/java/latest"
+    - "{{ java_home }}"
+
+- name: Add JAVA_HOME to profile
+  lineinfile:
+    path: "/home/{{ wf_os_user | default('wfadmin')}}/.bash_profile"
+    line: "{{ item }}"
+  with_items:
+    - "JAVA_HOME='{{ java_home }}'"
+    - "export JAVA_HOME"
+    - "PATH=\"$JAVA_HOME/bin:$PATH\""
+    - "export PATH"
+  become: yes
+
+- name: ls
+  shell: "{{ item }}"
+  with_items:
+    - "ls -la {{ java_home }}"
+    - "which java"
+  become: yes
+  ignore_errors: yes

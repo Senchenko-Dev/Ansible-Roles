@@ -1,0 +1,52 @@
+---
+
+- block:
+    - name: Stop and disable websphere.service
+      systemd:
+        name: websphere
+        state: stopped
+        daemon_reload: yes
+        enabled: no
+    - name: Delete /etc/systemd/system/websphere.service
+      file:
+        path: "/etc/systemd/system/websphere.service"
+        state: absent
+    - name: Remove users
+      user:
+        name: "{{ item }}"
+        state: absent
+        remove: yes
+      with_items:
+        - "{{ WAS_SSH_ADMIN_LOGIN }}"
+        - "{{ DEVELOPER_SSH_LOGIN }}"
+
+
+    - name: Delete WAS_DIR folder
+      file:
+        path: /tmp/WAS_DIR
+        state: absent
+        
+    - name: Delete java
+      yum:
+        name: javapackages-tools.noarch
+        state: absent    
+
+    - name: Delete folders for WAS
+      file:
+        name: "{{ item }}"
+        state: absent
+        owner: "{{ WAS_SSH_ADMIN_LOGIN }}"
+        group: "{{ WAS_SSH_ADMIN_LOGIN }}"
+      with_items:
+        - "{{ WAS_DIR }}/IMShared"
+        - "{{ WAS_DIR }}/AppServer"
+        - /tmp/ibm_installer
+        - /tmp/javasharedresources
+        - /tmp/osgi_instance_location
+        - /etc/sudoers.d/{{ DEVELOPER_SSH_LOGIN }}
+        - /var/spool/cron/{{ WAS_SSH_ADMIN_LOGIN }}
+  ignore_errors: true
+  become: true
+#  tags:
+#  - never
+#  - remove

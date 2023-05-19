@@ -1,0 +1,124 @@
+---
+  # Get info about system mounts 
+- setup:
+    filter: "ansible_mounts"
+    gather_timeout: 60
+    gather_subset: "all"
+
+  # Perform check that privileged_user exists
+- name: check user exists
+  getent:
+    database: passwd
+    key: "{{ prereq_nginx_iag_privileged_user }}"
+  ignore_errors: true
+  register: check_user
+  no_log: true
+
+   # Show result of user check 
+- name: show user status
+  debug:
+    msg: "{% if check_user.failed == false %}User check passed!{% else %}User check failed! Please check that user {{ prereq_nginx_iag_privileged_user }} exists on remote server and is in sudoers group{%endif%}"
+  failed_when: check_user.failed == true
+
+  # Perform check that mount exists
+- name: check mounts exists
+  assert:
+    success_msg: "SUCCESS: mountpoint {{ item.value.mountpoint }} exists"
+    fail_msg: "ERROR: mountpoint {{ item.value.mountpoint }} does not exist. Please check avaliability of mountpoint on server"
+    that:
+    - (item.value.mountpoint in (ansible_mounts | selectattr('mount', 'match', item.value.mountpoint) | list)[0].mount)
+  with_dict: "{{ prereq_nginx_iag_limits }}"
+  loop_control:
+    label: "{{ item.key }}"
+  ignore_errors: true
+  register: result_mounts
+  no_log: true
+
+  # Show result of check mount
+- name: show result of mount exists check
+  debug:
+    msg: "{{ item.msg }}"
+  with_items:
+    - "{{ result_mounts.results }}"
+  failed_when: "'ERROR' in item.msg"
+  loop_control:
+    label: "result for {{ item.item.key }} mountpoint: {{ item.item.value.mountpoint }}"
+  # Perform check that we have enough space
+- name: check mounts space available
+  assert:
+    success_msg: "Size of {{ item.value.mountpoint }} {{ ((ansible_mounts | selectattr('mount', 'match', item.value.mountpoint) | list)[0].size_available | float / 1000000000) | round(1, 'common') }} GB greater than limit {{ item.value.disk_free_limit }} GB"
+    fail_msg: "Size of {{ item.value.mountpoint }} {{ ((ansible_mounts | selectattr('mount', 'match', item.value.mountpoint) | list)[0].size_available | float / 1000000000) | round(1, 'common') }} GB is lower than limit {{ item.value.disk_free_limit }} GB"
+    that:
+    - ((item.value.disk_free_limit | int)*(1000**3)) <= (ansible_mounts | selectattr('mount', 'match', item.value.mountpoint) | list)[0].size_available
+  with_dict: "{{ prereq_nginx_iag_limits }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: result_free_space
+  #no_log: true
+
+  # Show result of space available check
+- name: show result mounts space available check
+  debug:
+    msg: "{{ item.msg }}"
+  with_items:
+    - "{{ result_free_space.results }}"
+  failed_when: "'ERROR' in item.msg"
+  loop_control:
+    label: "result for {{ item.item.key }} mountpoint: {{ item.item.value.mountpoint }}"
+
+  # Perform check that autostart command exists in /etc/rc.local file
+- name: check autostart command exists in /etc/rc.local file
+  command: grep -Fxq "ip link set {{ item.value }} txqueuelen 10000" /etc/rc.local
+  changed_when: false
+  failed_when: false
+  register: ip_test
+  with_dict:
+    - "{{ prereq_nginx_iag_rc_local }}"
+  loop_control:
+    label: "check start info in /etc/rc.local for {{ item.value }} interface"
+
+  # Copy /etc/rc.local to /tmp folder
+- name: copy /etc/rc.local to /tmp folder
+  copy:
+    src: "/etc/rc.local"
+    dest: "/tmp/rc.local"
+    mode: 0755
+    remote_src: true
+  become: yes
+  become_user: root
+  become_method: sudo
+
+  # Add autostart command in /etc/rc.local file
+- name: add autostart command
+  lineinfile:
+    dest: "/tmp/rc.local"
+    line: "ip link set {{ item.value }} txqueuelen 10000\nexit0"
+    insertbefore: "exit 0"
+    state: present
+  when: ip_test.results[0].rc == 1
+  with_dict:
+    - "{{ prereq_nginx_iag_rc_local }}"
+  become: yes
+  become_user: root
+  become_method: sudo
+  loop_control:
+    label: "add start info in /etc/rc.local for {{ item.value }} interface"
+
+  # Copy /tmp/rc.local to /etc/rc.local
+- name: copy /tmp/rc.local from temp folder to /etc/rc.d/rc.local
+  copy:
+    src: "/tmp/rc.local"
+    dest: "/etc/rc.d/rc.local"
+    remote_src: true
+  become: yes
+  become_user: root
+  become_method: sudo
+
+  # Clean temp rc.local file
+- name: cleanup /tmp/rc.local
+  file:
+    path: "/tmp/rc.local"
+    state: absent
+  become: yes
+  become_user: root
+  become_method: sudo

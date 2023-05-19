@@ -1,0 +1,34 @@
+---
+
+- block:
+    - name: "Verifiy if profile {{ WAS_PROFILE_NAME }} already exists"
+      stat:
+        path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}"
+      register: profile_already_exists
+    - name: "Verifiy if applications is already uninstalled"
+      stat:
+        path: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_delete_apps.py"
+      register: applications_already_uninstalled
+      when: profile_already_exists.stat.exists == true
+    - name: "Generate Response file"
+      template:
+        src: "was_delete_apps.py.j2"
+        dest: "{{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_delete_apps.py"
+    - name: "Uninstall default applications"
+      command: >
+        {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/wsadmin.sh
+        -lang jython
+        -port {{ WAS_ADMIN_SOAP_PORT }}
+        -username {{ WAS_WEB_ADMIN_LOGIN }}
+        -password {{ WAS_WEB_ADMIN_PASSWORD }}
+        -f {{ WAS_DIR }}/AppServer/profiles/{{ WAS_PROFILE_NAME }}/bin/was_delete_apps.py
+      register: cout
+      changed_when: cout.rc == 0
+      when: >
+        applications_already_uninstalled.stat.exists is defined and
+        applications_already_uninstalled.stat.exists|bool == false
+  become: "true"
+  become_user: "{{ WAS_SSH_ADMIN_LOGIN }}"
+  tags:
+  - never
+  - install

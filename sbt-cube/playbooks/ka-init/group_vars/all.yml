@@ -1,0 +1,178 @@
+---
+# --------------------------- -
+# Changes for bare metal    - -
+# Name of inventory file    - -
+# --------------------------- -
+all_inventory: "all.local.generated"
+
+# What container runtime do we use?
+# valid values:
+# - docker
+# - crio
+container_runtime: docker
+
+# --------------------------- -
+# docker vars               - -
+# --------------------------- -
+docker_install_suppress_newgrp: true
+
+# --------------------------- -
+# crio vars                 - -
+# --------------------------- -
+# Which version of crio?
+# (doesn't matter if docker is container runtime)
+crio_build_version: v1.11.1
+crio_build_install: False
+crio_use_copr: False
+# for binary install
+crio_binary_url: https://storage.googleapis.com/k8s-conform-cri-o/artifacts/crio-v1.20.1.tar.gz
+crictl_binary_url: https://github.com/kubernetes-sigs/cri-tools/releases/download/v1.20.0/crictl-v1.20.0-linux-amd64.tar.gz
+conmon_binary_url: https://github.com/containers/conmon/releases/download/v2.0.27/conmon.amd64
+
+
+# Network type (2nics or default)
+network_type: "default"
+# Pod net work CIDR
+pod_network_cidr: "10.244.0.0"
+
+# General config
+
+# At 1.7.2 you need this cause of a bug in kubeadm join.
+# Turn it off later, or, try it if a join fails.
+skip_preflight_checks: true
+
+# Stable. (was busted at 1.6 release, may work now, untested for a couple months)
+kube_baseurl: http://yum.kubernetes.io/repos/kubernetes-el7-x86_64
+
+# Unstable
+# kube_baseurl: http://yum.kubernetes.io/repos/kubernetes-el7-x86_64-unstable
+
+# Kube Version
+# Accepts "latest" or the version part of an RPM (typically based on the kubelet RPM).
+# For example if you were to look at `yum search kubelet --showduplicates`
+# You'd see things like "kubelet-1.7.5-0.x86_64"
+# You'd use "1.7.5-0" here, such as:
+# kube_version: 1.7.5-0
+# The default is... "latest"
+kube_version: "latest"
+
+# Binary install
+# Essentially replaces the RPM installed binaries with a specific set of binaries from URLs.
+# binary_install: true
+# binary_install_force_redownload: false
+
+images_directory: /home/images
+system_default_ram_mb: 4096
+system_default_cpus: 4
+
+# Define all VM's that need to be created and their respective roles.
+# There are three roles user can defined
+#  - master: Kubernets primary master node
+#  - master_slave: Kubernets secondary master nodes that joins primary master
+#  - nodes : Kubernetes nodes (worker)
+virtual_machines:
+  - name: kube-master1
+    node_type: master
+  - name: kube-node-1
+    node_type: nodes
+  - name: kube-node-2
+    node_type: nodes
+# Uncomment following (lb/master_slave) for k8s master HA cluster
+#  - name: kube-lb
+#    node_type: lb
+#  - name: kube-master2
+#    node_type: master_slave
+#  - name: kube-master3
+#    node_type: master_slave
+
+#  - name: builder
+#    node_type: builder
+#    system_ram_mb: 24576
+#  - name: my-support-node
+#    node_type: other
+#    system_ram_mb: 8192
+#    system_cpus: 8
+
+# Kubectl proxy.
+kubectl_proxy_port: 8088
+
+# Allow the kubernetes control plane to listen on all interfaces
+#control_plane_listen_all: true
+
+# ----------------------------
+# ovn vars.
+# ----------------------------
+#ovn_image_repo: "docker.io/ovnkube/ovn-daemonset-u:latest"
+ovn_image_repo: "docker.io/nfvpe/ovn-daemonset-u:latest"
+
+# OVN Kubernets repo and branch
+# ovn_kubernetes_repo: https://github.com/ovn-org/ovn-kubernetes
+# ovn_kubernetes_branch: master
+# Setup ovn-kubernetes in clustered HA mode (Raft based)
+# enable_ovn_raft: True
+
+# Set logging parameters for different OVN components
+# Log level for ovnkube master
+# ovnkube_master_loglevel: "5"
+
+# Log level for ovnkube node
+# ovnkube_node_loglevel: "5"
+
+# Log config for ovn northd
+# ovn_loglevel_northd: "-vconsole:info -vfile:info"
+
+# Log config for OVN Northbound Database
+# ovn_loglevel_nb: "-vconsole:info -vfile:info"
+
+# Log config for OVN Southbound Database
+# ovn_loglevel_sb: "-vconsole:info -vfile:info"
+
+# Log config for OVN Controller
+# ovn_loglevel_controller: "-vconsole:info"
+
+# Log config for OVN NBCTL daemon
+# ovn_loglevel_nbctld: "-vconsole:info"
+
+# ----------------------------
+# virt-host vars.
+# ----------------------------
+
+# Allows one to skip the steps to initially setup a virthost
+# convenient when iterating quickly.
+skip_virthost_depedencies: false
+
+# Enables a bridge to the outside LAN
+# (as opposed to using virbr0)
+bridge_networking: false
+bridge_name: virbr0
+bridge_physical_nic: "enp1s0f1"
+bridge_network_name: "br0"
+bridge_network_cidr: 192.168.1.0/24
+
+# ----------------------------
+# device plugins
+# ----------------------------
+enable_device_plugins: false
+
+# ----------------------------
+# builder vars
+# ----------------------------
+
+# NOTE: these builder vars are here and not in the group_vars/builder.yml file
+# because these values are used across different types of nodes, and not just
+# directly on the builder server itself.
+
+# artifact paths
+artifacts_sync_path: /opt/k8s/artifacts
+
+# builder archive list
+archive_list:
+  - rpms/kubeadm-x86_64.rpm
+  - rpms/kubectl-x86_64.rpm
+  - rpms/kubelet-x86_64.rpm
+  - rpms/kubernetes-cni-x86_64.rpm
+  - cloud-controller-manager.tar
+  - kube-apiserver.tar
+  - kube-controller-manager.tar
+  - kube-proxy.tar
+  - kube-scheduler.tar

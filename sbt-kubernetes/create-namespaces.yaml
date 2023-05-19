@@ -1,0 +1,41 @@
+---
+- hosts: all
+  vars_files:
+    - "{{ WORKSPACE }}/config/{{Stand}}/{{Subsystem}}/{{ system_conf_WF | default('system.conf') }}"
+
+
+  tasks:
+  - name: Temp dir
+    tempfile:
+      state: directory
+      suffix: tokens
+    register: tokens
+
+
+  - name: inslude_tasks
+    include_role:
+       name: sbt-install-kubernetes
+       tasks_from: create-namespaces
+    vars:
+      token_dir: "{{ tokens.path }}"
+      custom_namespace_name: "{{ item }}"
+    with_items: "{{ namespaces_list }}"
+
+
+  - name: Archive
+    archive:
+      path: "{{ tokens.path }}/tokens"
+      dest: /tmp/mytoken.zip
+      format: zip
+
+
+  - fetch:
+      src: /tmp/mytoken.zip
+      dest: "{{ WORKSPACE }}/mytoken.zip"
+      flat: yes
+      
+      
+  - name: Delete token file on host
+    file:
+      path: /tmp/mytoken.zip
+      state: absent

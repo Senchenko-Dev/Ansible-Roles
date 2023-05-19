@@ -1,0 +1,47 @@
+---
+- block:
+    # Playbook uses values from prereq_nginx_iag_mounts defined in vars.yml
+    # Create LVMs defined in vars.yml
+#  - name: create LVM
+#    lvol:
+#      vg: "{{ item.value.vg_name }}"
+#      lv: "{{ item.value.lv_name }}"
+#      size: "{{ item.value.size }}"
+#    with_dict: "{{ prereq_nginx_iag_mounts }}"
+#    loop_control:
+#      label: "{{ item.value.mount_name }}"
+#
+#    # Create fs on created LVM
+#  - name: create fs on LV
+#    filesystem:
+#      fstype: "{{ item.value.filesystem }}"
+#      dev: "{{ item.value.dev_path }}"
+#    with_dict: "{{ prereq_nginx_iag_mounts }}"
+#    loop_control:
+#      label: "{{ item.value.mount_name }}"
+
+    # Create mountpoint
+#  - name: create mountpoint
+#    mount:
+#      path: "{{ item.value.mount_path }}"
+#      src: "{{ item.value.dev_path }}"
+#      fstype: "{{ item.value.filesystem }}"
+#      state: mounted
+#    with_dict: "{{ prereq_nginx_iag_mounts }}"
+#    loop_control:
+#      label: "{{ item.value.mount_name }}"
+
+    # Recurcive chown mount folder
+  - name: chown mount folder
+    file:
+      dest: "{{ item.value.mount_path }}"
+      owner: "{{ item.value.owner }}"
+      group: "{{ item.value.group }}"
+      recurse: yes
+    with_dict: "{{ prereq_nginx_iag_mounts }}"
+    loop_control:
+      label: "{{ item.value.mount_name }}"
+
+  become: yes
+  #become_user: "{{ prereq_nginx_iag_privileged_user }}"
+  #become_method: sudo

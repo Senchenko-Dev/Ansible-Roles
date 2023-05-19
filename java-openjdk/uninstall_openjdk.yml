@@ -1,0 +1,19 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+  serial: "{{ serial | default('100%') }}"
+#  vars_files:
+#    - ../config/{{Stand}}/system.conf
+#    - ../config/{{Stand}}/password.conf
+#    - ../config/{{Stand}}/{{Subsystem}}/{{ password_conf_WF | default('password.conf') }}
+#    - ../config/{{Stand}}/{{Subsystem}}/{{ system_conf_WF | default('system.conf') }}
+  vars:
+    gather_facts: true
+    ansible_user: "{{ become_user }}"
+    ansible_password: "{{ ansible_become_pass }}"
+
+  tasks:
+
+    - name: Uninstall Java
+      include_role:
+        name: java-openjdk
+        tasks_from: uninstall

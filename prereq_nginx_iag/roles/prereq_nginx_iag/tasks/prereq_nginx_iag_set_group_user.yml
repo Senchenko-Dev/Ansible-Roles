@@ -1,0 +1,52 @@
+---
+- block:
+      # Playbook uses values from prereq_nginx_iag_user_group defined in vars.yml
+      # Create groups
+    - name: "create groups"
+      group:
+        name: "{{ item.value.usergroup }}"
+      with_dict: "{{ prereq_nginx_iag_user_group }}"
+      loop_control:
+        label: "{{ item.value.usergroup }}"
+
+      # Create users using decrypted passwords from _passwords.conf
+    - name: "create users"
+      vars:
+        user_pass_var: "prereq_nginx_iag.{{ item.value.username }}.password"
+      user:
+        append: yes
+        name: "{{ item.value.username }}"
+        group: "{{ item.value.usergroup }}"
+        groups: "{{ item.value.groups }}"
+        password: "{{ vault_properties[user_pass_var] | password_hash('sha512') }}"
+        #password: "{{ vault_properties[user_pass_var] }}" Если используется хеш пароля, то используем это определение переменной 
+        home: "{{ item.value.homedir }}"
+        expires: "{{ item.value.expires }}"
+      with_dict: "{{ prereq_nginx_iag_user_group }}"
+      loop_control:
+        label: "{{ item.value.username }}"
+
+    - name: create iac_admin_efs group
+      group:
+        name: "{{ item.value.usergroup }}"
+      with_dict: "{{ prereq_nginx_iag_iac_admin_efs }}"
+      loop_control:
+        label: "{{ item.value.username }}"
+
+      # Create iac_admin_efs user with values from prereq_nginx_iag_iac_admin_efs defined in vars.yml
+    - name: create iac_admin_efs user
+      user:
+        name: "{{ item.value.username }}"
+        group: "{{ item.value.usergroup }}"
+        home: "{{ item.value.homedir }}"
+        shell: "{{ item.value.shell }}"
+        uid: "{{ item.value.uid }}"
+        expires: "{{ item.value.expires }}"
+      with_dict: "{{ prereq_nginx_iag_iac_admin_efs }}"
+      loop_control:
+        label: "{{ item.value.username }}"
+
+  become: yes
+  become_user: root
+  become_method: sudo
+  when: prereq_nginx_iag_user_group is defined

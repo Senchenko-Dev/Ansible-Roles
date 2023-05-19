@@ -1,0 +1,47 @@
+- name: Проверка наличия wf_install_dir
+  stat:
+    path: "{{ wf_install_dir }}"
+  register: stat_wf_install_dir
+
+- debug:
+    msg: "Отсутствует каталог wf_install_dir"
+  when: not stat_wf_install_dir.stat.exists or not stat_wf_install_dir.stat.isdir
+
+- name: Создание каталога wf_install_dir
+  file:
+    path: "{{ wf_install_dir }}"
+    state: directory
+  when: not stat_wf_install_dir.stat.exists or not stat_wf_install_dir.stat.isdir
+  become: yes
+
+
+#- debug:
+#    msg:
+#      - "{{ansible_mounts}}"
+#      - "{{ansible_devices}}"
+#      - "{{stat_wf_install_dir}}"
+
+- name: Проверка монтирования дистка в wf_install_dir
+  set_fact:
+    wf_install_dir_disk: "{{item.device}}"
+    wf_install_dir_free_space_bytes: "{{item.size_available}}"
+  when: item.mount == wf_install_dir
+  loop: "{{ansible_mounts}}"
+
+- name: Проверка свободного места для установки на диске с wf_install_dir
+  assert:
+    that: wf_install_dir_free_space_bytes|int >= (1 * 1024 * 1024 * 1024)
+  when: wf_install_dir_free_space_bytes is defined
+
+- block:
+  - set_fact:
+      root_mount: "{{ ansible_mounts | selectattr('mount','equalto','/') | list | first }}"
+  - set_fact:
+      root_free_space_bytes: "{{root_mount.size_available}}"
+  - name:  Проверка свободного места для установки на диске /
+    assert:
+      that: root_free_space_bytes|int >= (1 * 1024 * 1024 * 1024)
+  when: wf_install_dir_free_space_bytes is not defined
+
+
+

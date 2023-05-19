@@ -1,0 +1,48 @@
+
+- debug:
+    msg: "---------------- DEBUG ----------------"
+
+- debug:
+      var: overwrite_files_wildfly
+
+- debug:
+      msg: "src={{item.src}} dest={{item.dest}}"
+  loop: "{{overwrite_files_wildfly}}"
+
+- block:
+  - name: create dir
+    become: yes
+    file:
+      path: "{{item.dest}}"
+      state: directory
+      mode: "{{mode}}"
+      owner: "{{owner}}"
+      group: "{{group}}"
+    loop: "{{overwrite_files}}"
+    vars:
+      overwrite_files: "{{overwrite_files_wildfly}}"
+      group: "{{ wf_os_group }}"
+      owner: "{{ wf_os_user }}"
+      mode: '0660'
+      force: yes
+
+  - name: overwrite files
+    #  include_role:
+    #    name: sbt-spo-utils
+    #    tasks_from: overwrite_files
+    become: yes
+#    copy:
+    template:
+      src: "{{item.src | basename}}"
+      dest: "{{item.dest}}/{{item.src | basename}}"
+      force: "{{ force | default('yes') }}"
+      mode: "{{mode}}"
+      owner: "{{owner}}"
+      group: "{{group}}"
+    loop: "{{overwrite_files}}"
+    vars:
+      overwrite_files: "{{overwrite_files_wildfly}}"
+      group: "{{ wf_os_group }}"
+      owner: "{{ wf_os_user }}"
+      mode: '0660'
+      force: yes

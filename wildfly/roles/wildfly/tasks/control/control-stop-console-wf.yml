@@ -1,0 +1,26 @@
+---
+- block:
+
+    - name: shutdown service wildfly 
+      shell: "sudo systemctl stop {{ wf_service }}"
+      changed_when: False
+      when: wf_service is defined
+
+  rescue:
+
+    - name: Get WF service log
+      shell: "cat {{ wf_install_dir }}/standalone/log/wf_service_control.log"
+      register: wf_service_log
+      ignore_errors: true
+      no_log: true
+
+    - name: Show WF service log
+      debug:
+        var: wf_service_log.stdout_lines
+      when: wf_service_log.rc == 0
+      
+    - name: Fail...
+      fail:
+        msg: "Service {{ wf_service }} is not stopped"
+
+  when: double_service == true # todo а если нет?

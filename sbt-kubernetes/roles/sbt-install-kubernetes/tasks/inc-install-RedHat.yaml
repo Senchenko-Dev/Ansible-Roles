@@ -1,0 +1,82 @@
+  - name: Check kubeadm
+    shell: kubectl cluster-info
+    become: yes
+    become_user: "{{ kube_become_user }}"
+    register: kubeadmcheck
+    ignore_errors: yes
+
+  - name: Install k8s RedHat OC
+    block:
+    - name: Disable swapoff
+      shell: "swapoff -a"
+
+    - name: Install Kubeadm & docker
+      package:
+        name:
+          - docker
+          - kubernetes-kubeadm
+#          - kubeadm
+        state: latest
+
+    - name: Restart services docker
+      service:
+        name: docker
+        state: restarted
+        enabled: yes
+
+
+    - name: Restart servieces k8s
+      service:
+        name: kubelet
+        state: restarted
+        enabled: yes
+
+
+    - name: kubeadm init
+      shell: kubeadm init
+
+    - lineinfile:
+        dest: "/var/lib/kubelet/config.yaml"
+        line: "{{ evict_k8s_values | to_nice_yaml | trim }}"
+
+    - name: Restart service kubelet
+      service:
+        name: kubelet
+        state: restarted
+        
+      
+    - name: Create folder ./kube
+      file:
+        path: /home/{{ kube_become_user }}/.kube
+        state: directory
+
+    - name: copy admin.conf file
+      shell: sudo cp -i /etc/kubernetes/admin.conf /home/{{ kube_become_user }}/.kube/config
+
+
+    - name: Change permitions
+      file:
+        path: /home/{{ kube_become_user }}/.kube/config
+        owner: "{{ kube_become_user }}"
+        group: "{{ kube_become_user }}"
+        mode: '0755'
+
+
+    - name: Get Node name
+      shell: "kubectl get nodes -o jsonpath='{.items[*].metadata.name}'"
+      register: k8s_node_name
+      become: no
+
+
+    - name: kubectl taint nodes node-role.kubernetes.io/master-
+      shell: "kubectl taint nodes {{ k8s_node_name.stdout }} node-role.kubernetes.io/master-"
+      become: no
+      ignore_errors: yes
+
+
+    - name: weave
+      become: no
+      shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+      
+
+    when: kubeadmcheck.stdout.find(kube_success_cluster_info) == -1

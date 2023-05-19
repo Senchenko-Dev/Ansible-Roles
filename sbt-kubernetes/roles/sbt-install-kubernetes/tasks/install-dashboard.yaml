@@ -1,0 +1,80 @@
+- name: install dashbord
+  shell: kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.3.1/aio/deploy/recommended.yaml
+  become: yes
+  become_user: "{{ kube_become_user }}"
+
+- name: Apply
+  become: no
+  shell: |
+    cat <<EOF | kubectl apply -f -
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: admin-user
+      namespace: kubernetes-dashboard
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: admin-user
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+    - kind: ServiceAccount
+      name: admin-user
+      namespace: kubernetes-dashboard
+    ---
+    kind: ClusterRole
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: kubernetes-dashboard-anonymous
+    rules:
+    - apiGroups: [""]
+      resources: ["services/proxy"]
+      resourceNames: ["https:kubernetes-dashboard:"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - nonResourceURLs: ["/ui", "/ui/*", "/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/*"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    ---
+     apiVersion: rbac.authorization.k8s.io/v1
+     kind: ClusterRoleBinding
+     metadata:
+       name: kubernetes-dashboard-anonymous
+     roleRef:
+       apiGroup: rbac.authorization.k8s.io
+       kind: ClusterRole
+       name: kubernetes-dashboard-anonymous
+     subjects:
+      - kind: User
+        name: system:anonymous
+    EOF
+
+
+
+
+
+#- name: kubectl apply dashboard.yaml
+#  become: no
+ # shell: kubectl apply -f ./roles/sbt-install-kubernetes/files/dashboard
+
+
+
+
+
+
+
+
+# - name: Kubectl apply dashbord-adminuser.yaml
+#   become: no
+#   shell: kubectl apply -f /home/pprbuser/AnsibleBitbucet/sbt-install-kubernetes/roles/sbt-install-kubernetes/files/dashbord/dashbord-adminuser.yaml
+#
+# - name: add cluster_role
+#   become: no
+#   shell: kubectl apply -f /home/pprbuser/AnsibleBitbucet/sbt-install-kubernetes/roles/sbt-install-kubernetes/files/dashbord/cluster_role.yaml
+#
+#
+# - name: add Cluster Role Binding
+#   become: no
+#   shell: kubectl apply -f /home/pprbuser/AnsibleBitbucet/sbt-install-kubernetes/roles/sbt-install-kubernetes/files/dashbord/cluster_role_binding.yaml

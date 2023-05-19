@@ -1,0 +1,27 @@
+#Kubernetes vars
+
+custom_role_name: "{{ custom_namespace_name }}-role" 
+custom_rolebinding_name: "{{ custom_role_name }}-bind" 
+url_google_pkg_gpg: "https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg" 
+baseurl_k8s_repo: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64 
+kube_become_user: "{{ ansible_ssh_user }}"
+kube_success_cluster_info: "running"
+cloud_weave_works_version: "v1.16"
+
+#### evict vars
+memory_available_hard: "500Mi"
+nodefs_available_hard: "10Mi"
+imagefs_available_hard: "10Mi"
+memory_available_reclaim: "0Mi"
+nodefs_available_reclaim: "0Mi"
+imagefs_available_reclaim: "0Mi"
+
+evict_k8s_values:
+  evictionHard:
+    memory.available: "{{ memory_available_hard }}"
+    nodefs.available: "{{ nodefs_available_hard }}"
+    imagefs.available: "{{ imagefs_available_hard }}"
+  evictionMinimumReclaim:
+    memory.available: "{{ memory_available_reclaim }}"
+    nodefs.available: "{{ nodefs_available_reclaim }}"
+    imagefs.available: "{{ imagefs_available_reclaim }}"

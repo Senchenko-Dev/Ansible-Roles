@@ -1,0 +1,91 @@
+---
+# wf_os_user -> wf_os_user
+# wf_os_group -> wf_os_group
+- name: "Create service directory {{ service_dir }}"
+  file:
+    path: "{{ service_dir }}"
+    state: directory
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: 0750
+  become: yes
+
+- name: "Create userspace systemd directory {{ service_systemd_dir }}"
+  file:
+    path: "{{ service_systemd_dir }}"
+    state: directory
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: 0750
+  become: yes
+
+- name: "Copy config files to {{ service_dir }}"
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ service_dir }}"
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: "{{ item.mode }}"
+  with_items:
+    - { src: 'service_priority.conf', mode: '0640' }
+    - { src: 'start.sh', mode: '0740' }
+    - { src: 'stop.sh', mode: '0740' }
+    # - { src: 'service.sh', mode: '0640' }
+  become: yes
+
+- name: "Copy files to {{ service_dir }}"
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ wf_os_user }}"
+    group: "{{ wf_os_group }}"
+    mode: "{{ item.mode }}"
+  with_items :
+    - { src: "service.sh.j2", dest: "{{ service_dir }}/service.sh", mode: '0744' }
+    - { src: "wildfly.env.j2", dest: "{{ service_dir }}/wildfly.env", mode: '0644' }
+    - { src: "wildfly.service.j2", dest: "{{ service_systemd_dir }}/{{ wfapp_service }}", mode: '0644' }
+    - { src: "wildfly-core.service.j2", dest: "{{ service_systemd_dir }}/{{ wf_service }}", mode: '0644' }
+#################################################
+  vars:
+    service_name: wildfly
+    wf_service: "{{ service_name }}-core.service"
+    wfapp_service: "{{ service_name }}.service"
+#################################################
+  become: yes
+
+- name: "Find services in {{ service_systemd_dir }}"
+  find:
+    paths: "{{ service_systemd_dir }}"
+    recurse: no
+    patterns: "*.service"
+  register: service_list
+  become: yes
+
+# - name: Try to deploy unit files to systemd dir.
+#   block:
+
+- name: "Copy unit service files to {{ systemd_dir }}"
+  copy:
+    src: "{{ item.path }}"
+    dest: "{{ systemd_dir }}"
+    owner: "root"
+    group: "root"
+    mode: 0644
+    remote_src: yes
+  with_items:
+    - "{{ service_list.files }}"
+  become: yes
+  register: copy_list
+  ignore_errors: true
+
+- name: "Enable and reload systemctl in inactive mode"
+  systemd:
+    daemon_reload: yes
+    enabled: yes
+    force: yes
+    name: "{{ item.dest }}"
+    state: stopped
+  with_items:
+    - "{{ copy_list.results }}"
+  become: yes
+  ignore_errors: true

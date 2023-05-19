@@ -1,0 +1,58 @@
+
+- block:
+    - name: get cluster info
+      shell: "curl -s {{ ansible_host }}:{{ patroni_port | default('8008') }}/cluster"
+      #          shell: "curl -s localhost:8008/cluster"
+      register: cluster_check
+      ignore_errors: true
+#  todo Consider using the get_url or uri module rather than running 'curl'.
+#  If you need to use command because get_url or uri is insufficient you can add
+#  'warn: false' to this command task
+
+    - debug:
+        msg: "dns_name - {{ dns_name }}, ansible_hostname - {{ ansible_hostname }}, ansible_host - {{ ansible_host }}"
+
+#  json_query('members[?role==`leader`].name' заменить на json_query('members[?role==`leader`].host'
+    - set_fact:
+        cluster_leader: "{{ cluster_check.stdout | from_json | json_query('members[?role==`leader`].host') | join('') }}"
+        cluster_leader_name: "{{ cluster_check.stdout | from_json | json_query('members[?role==`leader`].name') | join('') }}"
+        cluster_replica: "{{ cluster_check.stdout | from_json | json_query('members[?role!=`leader`].host') | join('') }}"
+        cluster_replica_name: "{{ cluster_check.stdout | from_json | json_query('members[?role!=`leader`].name') | join('') }}"
+      when: cluster_check.rc == 0
+
+    - set_fact:
+        cluster_leader: ""
+        cluster_leader_name: ""
+        cluster_replica: ""
+        cluster_replica_name: ""
+      when: cluster_check.rc != 0
+
+    - set_fact:
+        is_leader: "{{ cluster_leader == dns_name or cluster_leader == ansible_hostname or cluster_leader == ansible_host }}"
+    - set_fact:
+        master_alias: "{{inventory_hostname}}"
+      when: is_leader
+
+    - set_fact:
+        is_replica: "{{ cluster_replica == dns_name or cluster_replica == ansible_hostname or cluster_replica == ansible_host }}"
+    - set_fact:
+        replica_alias: "{{inventory_hostname}}"
+      when: is_replica
+
+    - set_fact:
+        etcd_alias: "{{inventory_hostname}}"
+      when:
+        - not is_leader
+        - not is_replica
+
+  when: installation_type == 'cluster'
+
+
+- block:
+    - name: set the only given host as leader
+      set_fact:
+        cluster_leader: "{{ ansible_host }}"
+        is_leader: True
+        is_replica: False
+        master_alias: "{{inventory_hostname}}"
+  when: installation_type == 'standalone'

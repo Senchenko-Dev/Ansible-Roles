@@ -1,0 +1,51 @@
+---
+
+- name: "Create BES folder"
+  file:
+    name: "/etc/opt/BESClient/"
+    state: directory
+    owner: "root"
+    group: "root"
+  become: "true"
+  tags:
+  - never
+  - install
+
+- name: copy BES file
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/opt/BESClient/"
+  with_items:
+    - "actionsite.afxm"
+    - "BESAgent-9.5.14.73-rhe6.x86_64.rpm"
+  become: "true"
+  tags:
+  - never
+  - install
+
+- name: Install BES package.
+  yum:
+     name: "/etc/opt/BESClient/BESAgent-9.5.14.73-rhe6.x86_64.rpm"
+     state: present
+  become: "true"
+  tags:
+  - never
+  - install
+
+- name: Start service BES
+  service:
+    name: besclient
+    state: started
+  become: "true"
+  tags:
+  - never
+  - install
+
+- name: Remove installation files
+  file:
+    path: "/etc/opt/BESClient/BESAgent-9.5.14.73-rhe6.x86_64.rpm"
+    state: absent
+  become: "true"
+  tags:
+  - never
+  - install

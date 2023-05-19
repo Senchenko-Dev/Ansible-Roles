@@ -1,0 +1,19 @@
+---
+- debug:
+    msg: "---------------- UPDATE ----------------"
+
+- name: Check WF install dir existing
+  include_tasks: install/check-installed.yml
+
+- debug:
+    msg: "WF_exists"
+  when: WF_exists
+
+- block:
+  - debug:
+      msg: "WF does not exist. Installing."
+  when: not WF_exists
+
+# todo backup тут??
+- include_tasks: install/install_start.yml
+  when: (not WF_exists) or (WF_exists and WF_other_version)

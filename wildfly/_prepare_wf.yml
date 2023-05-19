@@ -1,0 +1,19 @@
+---
+- hosts: "{{ hosts_group_WF }}"
+#    - nt_settings    
+#    - start_app
+#    - java_update
+  vars_files:
+    - ./config/main.yml
+  vars:
+    ansible_user: "{{ become_user }}"
+    ansible_password: "{{ ansible_become_pass }}"
+
+#  gather_facts: true
+
+  roles:
+#    - create_tmp
+    - kill_standalonesh
+    - start_prepare_WF
+#    - { role: wfscript, become: yes}
+#    - start_wf_service

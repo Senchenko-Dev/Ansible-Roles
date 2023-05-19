@@ -1,0 +1,67 @@
+#- name: Ensure distr path exists
+#  file:
+#    path: "{{ distr_path }}"
+#    state: directory
+#
+#- name: download distr package
+#  changed_when: False
+#  maven_artifact:
+#    group_id: "{{ group_id }}"
+#    artifact_id: "{{ artifact_id }}"
+#    version: "{{ artifact_version }}"
+#    extension: "{{ nexus_artifact_type }}"
+#    classifier: "{{ nexus_classifier|default('') }}"
+#    repository_url: "{{ nexus_repo_url }}"
+#    username: "{{ nexus_url_username }}"
+#    password: "{{ nexus_url_password }}"
+#    dest: "{{ distr_path }}/{{ distr_filename }}"
+#    mode: '0755'
+#    timeout: 600
+#    verify_checksum: never
+#    validate_certs: "{{ validate_ssl }}"
+#
+#- name: Extract {{ distr_filename }} to {{ distr_path }}
+#  unarchive:
+#    remote_src: yes
+#    src: "{{ distr_path }}/{{ distr_filename }}"
+#    dest: "{{ distr_path }}/"
+#
+#- shell: "ls {{ distr_path }}"
+
+- become: no
+  block:
+  - name: Ensure local_distr path exists
+    file:
+      path: "{{ local_distr_path }}"
+      state: directory
+    delegate_to: localhost
+
+  - name: download local_distr package
+    changed_when: False
+    maven_artifact:
+      group_id: "{{ group_id }}"
+      artifact_id: "{{ artifact_id }}"
+      version: "{{ artifact_version }}"
+      extension: "{{ nexus_artifact_type }}"
+      classifier: "{{ nexus_classifier|default('') }}"
+      repository_url: "{{ nexus_repo_url }}"
+      username: "{{ nexus_url_username }}"
+      password: "{{ nexus_url_password }}"
+      dest: "{{ local_distr_path }}/{{ distr_filename }}"
+      mode: '0755'
+      timeout: 600
+      verify_checksum: never
+      validate_certs: "{{ validate_ssl }}"
+    delegate_to: localhost
+
+  - name: Extract {{ distr_filename }} to {{ local_distr_path }}
+    unarchive:
+      src: "{{ local_distr_path }}/{{ distr_filename }}"
+      dest: "{{ local_distr_path }}/"
+    delegate_to: localhost
+
+  - shell: "ls {{ local_distr_path }}"
+    delegate_to: localhost
+
+  run_once: yes
+

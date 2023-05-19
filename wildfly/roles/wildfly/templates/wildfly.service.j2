@@ -1,0 +1,34 @@
+[Unit]
+Description={{ wfapp_service }} with GS v{{ wf_service_version }}
+After=syslog.target
+After=network.target
+
+BindsTo={{ wf_service }}
+After={{ wf_service }}
+
+[Service]
+Type=forking
+User={{ wf_os_user }}
+Group={{ wf_os_group }}
+
+EnvironmentFile={{ service_dir }}/wildfly.env
+WorkingDirectory={{ wf_home }}
+#ExecStart=/bin/env bash {{ service_dir }}/service.sh startApp
+#ExecStop=/bin/env bash {{ service_dir }}/service.sh stopApp
+ExecStart={{ env_for_service }} bash {{ service_dir }}/service.sh startApp
+ExecStop={{ env_for_service }} bash {{ service_dir }}/service.sh stopApp
+RemainAfterExit=yes
+
+LimitNOFILE=256000
+LimitNPROC=256000
+OOMScoreAdjust=-1000
+#TimeoutSec=300
+TimeoutStartSec={{ systemd_timeout_start }}
+TimeoutStopSec={{ systemd_timeout_stop }}
+
+StandardOutput=syslog
+SyslogIdentifier={{ wfapp_service }}
+#Restart=always
+
+[Install]
+WantedBy=multi-user.target

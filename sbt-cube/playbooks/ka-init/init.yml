@@ -1,0 +1,6 @@
+---
+- name: Prerequisites
+  hosts: all
+  tasks:
+    - name: include group vars
+      include_vars: group_vars/all.yml

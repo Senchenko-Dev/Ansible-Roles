@@ -1,0 +1,16 @@
+---
+- hosts: 127.0.0.1
+  vars:
+    - prereq_nginx_iag_rsysloglib_url: "https://nexus.swec.sbercloud.ru/nexus/content/repositories/Nexus_PROD/Nexus_PROD/CI00360902_TECH_CORE/D-09.004.03-01/CI00360902_TECH_CORE-D-09.004.03-01-distrib.zip"
+  tasks:
+
+    - name: download
+      shell: "curl -u {{ nexusUser }}:{{ nexusPass }} {{ prereq_nginx_iag_rsysloglib_url }} --output {{WORKSPACE}}/rsyslog_libraries-1.1.tar.gz > /dev/null 2>&1"
+
+- hosts: all
+  gather_facts: false
+  max_fail_percentage: 0
+  tasks:
+  - name: run prereq_nginx_iag role
+    include_role:
+      name: prereq_nginx_iag
